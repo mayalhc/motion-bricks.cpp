@@ -119,6 +119,9 @@ MB_API mb_status mb_model_get_joint_name(const mb_model * value, uint32_t joint,
 MB_API mb_status mb_model_get_joint_parent(const mb_model * value, uint32_t joint,
                                            int32_t * output,
                                            char * error, uint64_t error_capacity);
+MB_API mb_status mb_model_get_neutral_joint_position(const mb_model * value, uint32_t joint,
+                                                     float * x, float * y, float * z,
+                                                     char * error, uint64_t error_capacity);
 
 MB_API mb_status mb_style_load(const mb_model * model, const char * style_path,
                                mb_style ** output, char * error, uint64_t error_capacity);

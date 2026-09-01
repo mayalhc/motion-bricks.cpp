@@ -14,6 +14,7 @@ and pose-token decisions in the reference suite.
 - [Human-led design](docs/motions-bricks.md)
 - [Implementation sketch and plan](docs/IMPLEMENTATION.md)
 - [Versioned formats](docs/FORMATS.md)
+- [Go/Three.js demo](docs/DEMO.md)
 - [Pinned upstream reference](reference/README.md)
 
 ## Build
@@ -94,5 +95,13 @@ translations `[frames,3]` and local XYZW rotations `[frames,34,4]`. Call
 motion as its next context.
 
 The current implementation covers original preprocessed G1 styles. Direct
-Kimodo GLB-to-`.mbstyle` conversion and the Go/browser demo remain subsequent
-integration work.
+Kimodo GLB-to-`.mbstyle` conversion remains subsequent integration work.
+
+## Interactive demo
+
+The initial Go/Three.js demo renders the model's 34-joint skeleton and lets
+you steer it with W/A/S/D, turn its facing with the arrow keys, and switch
+among the converted upstream styles. It uses the reusable PureGo binding and
+the same stateful native agent as other applications. See the
+[demo guide](docs/DEMO.md) for build, run, architecture, and headless-Chromium
+test instructions.

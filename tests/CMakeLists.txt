@@ -69,6 +69,24 @@ if(MOTIONBRICKS_GO_EXECUTABLE AND NOT MOTIONBRICKS_SANITIZE)
             "${MOTIONBRICKS_GO_EXECUTABLE}" test ./...)
     set_tests_properties(motionbricks-purego-abi PROPERTIES
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../bindings/go")
+
+    find_program(MOTIONBRICKS_CHROMIUM_EXECUTABLE NAMES chromium chromium-browser google-chrome)
+    if(MOTIONBRICKS_CHROMIUM_EXECUTABLE AND
+       MOTIONBRICKS_ENABLE_GGML AND
+       EXISTS "${MOTIONBRICKS_REFERENCE_BUNDLE}/pose.gguf" AND
+       EXISTS "${MOTIONBRICKS_REFERENCE_STYLES}/walk.mbstyle")
+        add_test(NAME motionbricks-go-demo
+            COMMAND "${CMAKE_COMMAND}" -E env
+                "MOTIONBRICKS_LIB=$<TARGET_FILE:motionbricks_shared>"
+                "MOTIONBRICKS_MODEL=${MOTIONBRICKS_REFERENCE_BUNDLE}"
+                "MOTIONBRICKS_STYLES=${MOTIONBRICKS_REFERENCE_STYLES}"
+                "MOTIONBRICKS_CHROME=${MOTIONBRICKS_CHROMIUM_EXECUTABLE}"
+                "${MOTIONBRICKS_GO_EXECUTABLE}" test -v ./...)
+        set_tests_properties(motionbricks-go-demo PROPERTIES
+            WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../demo"
+            RUN_SERIAL TRUE
+            TIMEOUT 60)
+    endif()
 endif()
 
 if(MOTIONBRICKS_SANITIZE)

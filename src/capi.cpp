@@ -340,6 +340,21 @@ mb_status mb_model_get_joint_parent(const mb_model * value, uint32_t joint, int3
     });
 }
 
+mb_status mb_model_get_neutral_joint_position(const mb_model * value, uint32_t joint,
+                                              float * x, float * y, float * z,
+                                              char * error, uint64_t error_capacity) {
+    return guard(error, error_capacity, [&]() -> mb_status {
+        if (value == nullptr || x == nullptr || y == nullptr || z == nullptr)
+            return fail(MB_INVALID_ARGUMENT, error, error_capacity, "model or output is null");
+        if (joint >= value->joint_names.size() || value->neutral_joints.size() != value->joint_names.size() * 3U)
+            return fail(MB_INVALID_ARGUMENT, error, error_capacity, "joint index is out of range");
+        *x = value->neutral_joints[static_cast<std::size_t>(joint) * 3U];
+        *y = value->neutral_joints[static_cast<std::size_t>(joint) * 3U + 1U];
+        *z = value->neutral_joints[static_cast<std::size_t>(joint) * 3U + 2U];
+        return MB_OK;
+    });
+}
+
 mb_status mb_style_load(const mb_model * model, const char * style_path, mb_style ** output,
                         char * error, uint64_t error_capacity) {
     return guard(error, error_capacity, [&]() -> mb_status {

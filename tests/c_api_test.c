@@ -55,6 +55,7 @@ int main(void) {
     assert(mb_model_load("fixture", options, &model, error, sizeof(error)) == MB_IO_ERROR);
     assert(model == 0 && error[0] != '\0');
     assert(mb_model_get_parameter_count(0, &seed, error, sizeof(error)) == MB_INVALID_ARGUMENT);
+    assert(mb_model_get_neutral_joint_position(0, 0, &x, &y, &z, error, sizeof(error)) == MB_INVALID_ARGUMENT);
 
     {
         char tiny[2] = {'x', 'x'};

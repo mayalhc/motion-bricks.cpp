@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en" data-test-status="starting">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>MotionBricks G1</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <section id="viewport" aria-label="Animated G1 skeleton"></section>
+    <aside>
+      <p class="eyebrow">MOTIONBRICKS / G1</p>
+      <h1>Whole-body motion</h1>
+      <p class="lede">Move with WASD. The character faces its travel direction; arrow keys turn independently.</p>
+      <label for="style-select">Upstream pose style</label>
+      <select id="style-select" aria-label="Motion style"></select>
+      <div class="pad" aria-label="Directional controls">
+        <button data-key="w" data-x="0" data-z="1" aria-label="Walk forward">W</button>
+        <button data-key="a" data-x="-1" data-z="0" aria-label="Walk left">A</button>
+        <button data-key="s" data-x="0" data-z="-1" aria-label="Walk backward">S</button>
+        <button data-key="d" data-x="1" data-z="0" aria-label="Walk right">D</button>
+      </div>
+      <dl>
+        <div><dt>Status</dt><dd id="status">Loading model…</dd></div>
+        <div><dt>Plan</dt><dd id="plan-info">—</dd></div>
+        <div><dt>Backend</dt><dd>native GGML</dd></div>
+      </dl>
+      <p id="test-result" role="status"></p>
+    </aside>
+  </main>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

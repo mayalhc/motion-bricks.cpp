@@ -36,14 +36,20 @@ The native inference slice described above is operational. The strict bundle
 loader, all three released neural graphs, normalization and motion
 representation conversion, original G1 style assets, spring-based target
 construction, stateful agent, and public skeletal outputs are implemented.
+The reusable PureGo binding, local Go session server, and embedded Three.js G1
+skeleton viewer are also implemented. The viewer supports directional
+steering, independent facing changes, and all converted upstream styles.
+
 The deterministic component fixtures pass against upstream PyTorch on CPU;
 CPU and Vulkan preserve duration and pose-token choices and agree end to end
-within small F32 tolerances.
+within small F32 tolerances. The demo has native HTTP integration coverage and
+a headless-Chromium test that performs real inference, changes style and
+direction, renders all 34 bones, and captures a screenshot.
 
 Still outstanding from the wider plan are direct Kimodo GLB style import,
 recorded upstream controller/session fixtures, context-output blending,
-Gumbel sampling, graph/buffer caching and performance work, the Go/Three.js
-demo, fuzzing, and optimized weight formats. The human-led
+Gumbel sampling, graph/buffer caching and performance work, binary browser
+streaming, fuzzing, and optimized weight formats. The human-led
 `motions-bricks.md` remains unchanged.
 
 ## System shape
@@ -81,7 +87,7 @@ demo, fuzzing, and optimized weight formats. The human-led
                               |
              root translations + local joint rotations
                               |
-              binary WebSocket frames -> Three.js
+                HTTP JSON chunks -> Three.js
 ```
 
 There are three deliberately separate layers:
@@ -251,6 +257,9 @@ mb_status mb_model_get_joint_name(const mb_model *, uint32_t joint,
                                   const char **borrowed, char *, uint64_t);
 mb_status mb_model_get_joint_parent(const mb_model *, uint32_t joint,
                                     int32_t *out, char *, uint64_t);
+mb_status mb_model_get_neutral_joint_position(const mb_model *, uint32_t joint,
+                                              float *x, float *y, float *z,
+                                              char *, uint64_t);
 
 mb_status mb_style_load(const mb_model *, const char *style_path,
                         mb_style **out, char *err, uint64_t err_cap);
