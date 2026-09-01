@@ -1,0 +1,79 @@
+add_executable(motionbricks-c-api-test c_api_test.c)
+target_link_libraries(motionbricks-c-api-test PRIVATE motionbricks::motionbricks)
+add_test(NAME motionbricks-c-api COMMAND motionbricks-c-api-test)
+
+add_executable(motionbricks-cpp-wrapper-test cpp_wrapper_test.cpp)
+target_link_libraries(motionbricks-cpp-wrapper-test PRIVATE motionbricks::motionbricks)
+add_test(NAME motionbricks-cpp-wrapper COMMAND motionbricks-cpp-wrapper-test)
+
+set(MOTIONBRICKS_REFERENCE_BUNDLE "${PROJECT_SOURCE_DIR}/generated/g1-f32" CACHE PATH
+    "Optional local converted MotionBricks bundle for parity tests")
+set(MOTIONBRICKS_REFERENCE_FIXTURES "${PROJECT_SOURCE_DIR}/generated/fixtures-gguf" CACHE PATH
+    "Optional local GGUF reference fixtures for parity tests")
+set(MOTIONBRICKS_REFERENCE_STYLES "${PROJECT_SOURCE_DIR}/generated/styles" CACHE PATH
+    "Optional local converted MotionBricks styles for integration tests")
+if(MOTIONBRICKS_ENABLE_GGML AND
+   EXISTS "${MOTIONBRICKS_REFERENCE_BUNDLE}/pose.gguf" AND
+   EXISTS "${MOTIONBRICKS_REFERENCE_FIXTURES}/pose.gguf")
+    add_executable(motionbricks-pose-parity-test pose_parity_test.cpp)
+    target_include_directories(motionbricks-pose-parity-test PRIVATE
+        "${PROJECT_SOURCE_DIR}/src" "${MOTIONBRICKS_GGML_SOURCE_DIR}/include")
+    target_compile_definitions(motionbricks-pose-parity-test PRIVATE
+        MOTIONBRICKS_HAVE_GGML=1
+        MOTIONBRICKS_REFERENCE_BUNDLE="${MOTIONBRICKS_REFERENCE_BUNDLE}"
+        MOTIONBRICKS_REFERENCE_FIXTURES="${MOTIONBRICKS_REFERENCE_FIXTURES}")
+    target_link_libraries(motionbricks-pose-parity-test PRIVATE motionbricks_static ggml)
+    add_test(NAME motionbricks-pose-parity COMMAND motionbricks-pose-parity-test)
+
+    add_executable(motionbricks-decoder-parity-test decoder_parity_test.cpp)
+    target_include_directories(motionbricks-decoder-parity-test PRIVATE
+        "${PROJECT_SOURCE_DIR}/src" "${MOTIONBRICKS_GGML_SOURCE_DIR}/include")
+    target_compile_definitions(motionbricks-decoder-parity-test PRIVATE
+        MOTIONBRICKS_HAVE_GGML=1
+        MOTIONBRICKS_REFERENCE_BUNDLE="${MOTIONBRICKS_REFERENCE_BUNDLE}"
+        MOTIONBRICKS_REFERENCE_FIXTURES="${MOTIONBRICKS_REFERENCE_FIXTURES}")
+    target_link_libraries(motionbricks-decoder-parity-test PRIVATE motionbricks_static ggml)
+    add_test(NAME motionbricks-decoder-parity COMMAND motionbricks-decoder-parity-test)
+
+    add_executable(motionbricks-root-parity-test root_parity_test.cpp)
+    target_include_directories(motionbricks-root-parity-test PRIVATE
+        "${PROJECT_SOURCE_DIR}/src" "${MOTIONBRICKS_GGML_SOURCE_DIR}/include")
+    target_compile_definitions(motionbricks-root-parity-test PRIVATE
+        MOTIONBRICKS_HAVE_GGML=1
+        MOTIONBRICKS_REFERENCE_BUNDLE="${MOTIONBRICKS_REFERENCE_BUNDLE}"
+        MOTIONBRICKS_REFERENCE_FIXTURES="${MOTIONBRICKS_REFERENCE_FIXTURES}")
+    target_link_libraries(motionbricks-root-parity-test PRIVATE motionbricks_static ggml)
+    add_test(NAME motionbricks-root-parity COMMAND motionbricks-root-parity-test)
+
+    if(EXISTS "${MOTIONBRICKS_REFERENCE_STYLES}/walk.mbstyle")
+        add_executable(motionbricks-agent-integration-test agent_integration_test.cpp)
+        target_compile_definitions(motionbricks-agent-integration-test PRIVATE
+            MOTIONBRICKS_REFERENCE_BUNDLE="${MOTIONBRICKS_REFERENCE_BUNDLE}"
+            MOTIONBRICKS_REFERENCE_STYLES="${MOTIONBRICKS_REFERENCE_STYLES}")
+        target_link_libraries(motionbricks-agent-integration-test PRIVATE motionbricks_static)
+        add_test(NAME motionbricks-agent-integration COMMAND motionbricks-agent-integration-test)
+
+        add_executable(motionbricks-agent-backend-parity-test agent_backend_parity_test.cpp)
+        target_compile_definitions(motionbricks-agent-backend-parity-test PRIVATE
+            MOTIONBRICKS_REFERENCE_BUNDLE="${MOTIONBRICKS_REFERENCE_BUNDLE}"
+            MOTIONBRICKS_REFERENCE_STYLES="${MOTIONBRICKS_REFERENCE_STYLES}")
+        target_link_libraries(motionbricks-agent-backend-parity-test PRIVATE motionbricks_static)
+    endif()
+endif()
+
+find_program(MOTIONBRICKS_GO_EXECUTABLE go)
+if(MOTIONBRICKS_GO_EXECUTABLE AND NOT MOTIONBRICKS_SANITIZE)
+    add_test(NAME motionbricks-purego-abi
+        COMMAND "${CMAKE_COMMAND}" -E env
+            "MOTIONBRICKS_LIB=$<TARGET_FILE:motionbricks_shared>"
+            "${MOTIONBRICKS_GO_EXECUTABLE}" test ./...)
+    set_tests_properties(motionbricks-purego-abi PROPERTIES
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../bindings/go")
+endif()
+
+if(MOTIONBRICKS_SANITIZE)
+    foreach(target motionbricks-c-api-test motionbricks-cpp-wrapper-test motionbricks-cli)
+        target_compile_options(${target} PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
+        target_link_options(${target} PRIVATE -fsanitize=address,undefined)
+    endforeach()
+endif()

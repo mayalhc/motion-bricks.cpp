@@ -1,0 +1,116 @@
+cmake_minimum_required(VERSION 3.25)
+project(motionbricks VERSION 0.1.0 LANGUAGES C CXX)
+
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_C_EXTENSIONS OFF)
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+include(GNUInstallDirs)
+
+option(MOTIONBRICKS_BUILD_TESTS "Build motion-bricks.cpp tests" ON)
+option(MOTIONBRICKS_ENABLE_GGML "Use the pinned GGML submodule when present" ON)
+option(MOTIONBRICKS_ENABLE_VULKAN "Enable the GGML Vulkan backend" ON)
+option(MOTIONBRICKS_ENABLE_FUZZERS "Build libFuzzer targets" OFF)
+option(MOTIONBRICKS_SANITIZE "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
+set(MOTIONBRICKS_GGML_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ggml" CACHE PATH
+    "Pinned GGML submodule source directory")
+
+set(MOTIONBRICKS_SOURCES
+    src/capi.cpp
+    src/decoder.cpp
+    src/error.cpp
+    src/model.cpp
+    src/neural_runtime.cpp
+    src/pose.cpp)
+list(APPEND MOTIONBRICKS_SOURCES src/root.cpp)
+list(APPEND MOTIONBRICKS_SOURCES src/motion_rep.cpp)
+list(APPEND MOTIONBRICKS_SOURCES src/planner.cpp)
+list(APPEND MOTIONBRICKS_SOURCES src/style.cpp)
+list(APPEND MOTIONBRICKS_SOURCES src/agent.cpp)
+
+add_library(motionbricks_shared SHARED ${MOTIONBRICKS_SOURCES})
+add_library(motionbricks::motionbricks ALIAS motionbricks_shared)
+set_target_properties(motionbricks_shared PROPERTIES
+    OUTPUT_NAME motionbricks
+    EXPORT_NAME motionbricks
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN YES
+    VERSION ${PROJECT_VERSION}
+    SOVERSION 0)
+target_compile_definitions(motionbricks_shared PRIVATE MOTIONBRICKS_BUILD MOTIONBRICKS_SHARED)
+
+add_library(motionbricks_static STATIC ${MOTIONBRICKS_SOURCES})
+add_library(motionbricks::motionbricks_static ALIAS motionbricks_static)
+set_target_properties(motionbricks_static PROPERTIES
+    OUTPUT_NAME motionbricks
+    EXPORT_NAME motionbricks_static)
+target_compile_definitions(motionbricks_static PRIVATE MOTIONBRICKS_BUILD)
+
+foreach(target motionbricks_shared motionbricks_static)
+    target_include_directories(${target}
+        PUBLIC
+            "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
+            "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
+        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    if(MSVC)
+        target_compile_options(${target} PRIVATE /W4 /permissive-)
+    else()
+        target_compile_options(${target} PRIVATE
+            -Wall -Wextra -Wpedantic -Wconversion -Wshadow)
+    endif()
+endforeach()
+
+if(MOTIONBRICKS_ENABLE_GGML)
+    if(EXISTS "${MOTIONBRICKS_GGML_SOURCE_DIR}/CMakeLists.txt")
+        set(GGML_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+        set(GGML_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+        set(GGML_NATIVE OFF CACHE BOOL "" FORCE)
+        set(GGML_VULKAN ${MOTIONBRICKS_ENABLE_VULKAN} CACHE BOOL "" FORCE)
+        set(GGML_BACKEND_DL OFF CACHE BOOL "" FORCE)
+        add_subdirectory("${MOTIONBRICKS_GGML_SOURCE_DIR}"
+                         "${CMAKE_BINARY_DIR}/ggml" EXCLUDE_FROM_ALL)
+        # GGML is currently an internal build-tree dependency. Its installed
+        # runtime/package contract will be added with the first neural graph.
+        target_link_libraries(motionbricks_shared PRIVATE "$<BUILD_INTERFACE:ggml>")
+        target_link_libraries(motionbricks_static PRIVATE "$<BUILD_INTERFACE:ggml>")
+        target_compile_definitions(motionbricks_shared PRIVATE MOTIONBRICKS_HAVE_GGML=1)
+        target_compile_definitions(motionbricks_static PRIVATE MOTIONBRICKS_HAVE_GGML=1)
+        if(MOTIONBRICKS_ENABLE_VULKAN AND TARGET ggml-vulkan)
+            target_link_libraries(motionbricks_shared PRIVATE "$<BUILD_INTERFACE:ggml-vulkan>")
+            target_link_libraries(motionbricks_static PRIVATE "$<BUILD_INTERFACE:ggml-vulkan>")
+            target_compile_definitions(motionbricks_shared PRIVATE MOTIONBRICKS_HAVE_VULKAN=1)
+            target_compile_definitions(motionbricks_static PRIVATE MOTIONBRICKS_HAVE_VULKAN=1)
+        endif()
+    else()
+        message(STATUS "GGML submodule not present; building the ABI scaffold only")
+    endif()
+endif()
+
+if(MOTIONBRICKS_SANITIZE)
+    if(MSVC)
+        message(FATAL_ERROR "MOTIONBRICKS_SANITIZE currently requires Clang or GCC")
+    endif()
+    foreach(target motionbricks_shared motionbricks_static)
+        target_compile_options(${target} PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
+        target_link_options(${target} PRIVATE -fsanitize=address,undefined)
+    endforeach()
+endif()
+
+add_executable(motionbricks-cli src/cli.cpp)
+target_link_libraries(motionbricks-cli PRIVATE motionbricks::motionbricks)
+set_target_properties(motionbricks-cli PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+
+include(CTest)
+if(BUILD_TESTING AND MOTIONBRICKS_BUILD_TESTS)
+    add_subdirectory(tests)
+endif()
+
+install(TARGETS motionbricks_shared motionbricks_static motionbricks-cli
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
+install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})

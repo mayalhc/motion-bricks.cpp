@@ -1,0 +1,10 @@
+/build/
+/dist/
+/generated/
+/models/
+/fixtures/
+/.cache/
+/.direnv/
+/result
+compile_commands.json
+__pycache__/
