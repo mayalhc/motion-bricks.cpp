@@ -31,13 +31,14 @@ Run it from the repository root:
   -device cpu
 ```
 
-Open `http://127.0.0.1:8080/`. Use W/A/S/D or the on-screen pad to set the
-travel direction. Left/right arrow keys rotate the facing direction without
-changing the current travel vector. The selector switches among all
-`.mbstyle` files found in the style directory, including the 15 converted
-upstream styles. Drag over the viewport to orbit, use the wheel to zoom, and
-use **Reset camera** to restore the automatically framed view. The target
-toggle switches between all four ghosts and the final target only.
+Open `http://127.0.0.1:8080/`. Hold physical W/A/S/D keys to move, or tap an
+on-screen direction to latch it; tap the active pad direction again to stop.
+Space or Escape also stops movement. Left/right arrow keys rotate the facing
+direction without changing the current travel vector. The selector switches
+among all `.mbstyle` files found in the style directory, including the 15
+converted upstream styles. Drag over the viewport to orbit, use the wheel to
+zoom, and use **Reset camera** to restore the automatically framed view. The
+target toggle switches between all four ghosts and the final target only.
 
 `-device` accepts `cpu`, `vulkan`, or `auto`. The server deliberately binds to
 localhost by default. Model inference is serialized while sessions keep
@@ -80,7 +81,9 @@ Go and Chromium are available. The test starts an in-process HTTP server,
 loads the real native model, plans an initial `walk` chunk, then uses headless
 Chromium to select `walk_zombie`, turn right, plan another chunk, render the
 34-joint generated hierarchy plus all four target ghosts, and capture initial,
-forward-motion, and style-and-turn screenshots.
+forward-motion, and style-and-turn screenshots. It uses real Chrome click and
+keyboard events and asserts forward-pad movement, pad stop, keyboard movement,
+and keyboard stop commands before the visual self-test.
 
 The Go tests can also be run directly:
 

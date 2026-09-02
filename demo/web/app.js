@@ -13,7 +13,7 @@ const query = new URLSearchParams(location.search);
 const state = {
   meta: null, session: '', motion: null, targets: null, playhead: 0,
   lastTime: performance.now(), move: [0, 0], facing: [0, 1], keys: new Set(),
-  pending: false, seed: 10, style: '', rig: null, targetRigs: [],
+  padKey: '', pending: false, replanQueued: false, seed: 10, style: '', rig: null, targetRigs: [],
   generatedPath: null, targetPath: null,
 };
 
@@ -282,7 +282,7 @@ function installStyles(styles) {
   styleSelect.addEventListener('change', () => { state.style = styleSelect.value; void requestPlan(); });
 }
 
-function useMotion(response) {
+function useMotion(response, plannedMove = state.move) {
   state.session = response.session;
   state.style = response.style;
   styleSelect.value = response.style;
@@ -294,6 +294,8 @@ function useMotion(response) {
   targetInfo.textContent = `${response.targets.frames} placed constraints`;
   statusElement.textContent = 'Playing';
   document.documentElement.dataset.planSequence = String(Number(document.documentElement.dataset.planSequence || 0) + 1);
+  document.documentElement.dataset.plannedMoveX = String(plannedMove[0]);
+  document.documentElement.dataset.plannedMoveZ = String(plannedMove[1]);
   setGroundPath(state.generatedPath, response.motion.roots, response.motion.frames);
   setGroundPath(state.targetPath, response.targets.roots, response.targets.frames);
   for (let frame = 0; frame < response.targets.frames; frame++) {
@@ -303,43 +305,60 @@ function useMotion(response) {
 }
 
 async function requestPlan(advance = Math.floor(state.playhead)) {
-  if (state.pending || !state.session) return null;
+  if (!state.session) return null;
+  if (state.pending) {
+    state.replanQueued = true;
+    return null;
+  }
   state.pending = true;
   statusElement.textContent = 'Planning…';
+  const plannedMove = [...state.move];
   try {
     const response = await api('/api/plan', {
       session: state.session, style: state.style, move: state.move, facing: state.facing,
       seed: state.seed++, advance,
     });
-    useMotion(response);
+    useMotion(response, plannedMove);
     return response;
   } finally {
     state.pending = false;
+    if (state.replanQueued) {
+      state.replanQueued = false;
+      queueMicrotask(() => void requestPlan(Math.floor(state.playhead)));
+    }
   }
 }
 
 function updateControl() {
   let x = 0, z = 0;
-  if (state.keys.has('w')) z += 1;
-  if (state.keys.has('s')) z -= 1;
-  if (state.keys.has('a')) x -= 1;
-  if (state.keys.has('d')) x += 1;
+  const active = key => state.keys.has(key) || state.padKey === key;
+  if (active('w')) z += 1;
+  if (active('s')) z -= 1;
+  if (active('a')) x -= 1;
+  if (active('d')) x += 1;
   const length = Math.hypot(x, z);
   if (length > 0) { x /= length; z /= length; state.facing = [x, z]; }
   state.move = [x, z];
-  document.querySelectorAll('.pad button').forEach(button => button.classList.toggle('active', state.keys.has(button.dataset.key)));
+  document.querySelectorAll('.pad button').forEach(button => {
+    const pressed = active(button.dataset.key);
+    button.classList.toggle('active', pressed);
+    button.setAttribute('aria-pressed', String(pressed));
+  });
 }
 
 let controlTimer = 0;
-function schedulePlan() { clearTimeout(controlTimer); controlTimer = setTimeout(() => void requestPlan(), 70); }
+function schedulePlan(delay = 0) { clearTimeout(controlTimer); controlTimer = setTimeout(() => void requestPlan(), delay); }
 addEventListener('keydown', event => {
   const key = event.key.toLowerCase();
-  if (['w', 'a', 's', 'd'].includes(key)) {
+  if (['w', 'a', 's', 'd'].includes(key) && !state.keys.has(key)) {
     state.keys.add(key); updateControl(); schedulePlan(); event.preventDefault();
+  }
+  if (event.code === 'Space' || event.key === 'Escape') {
+    state.keys.clear(); state.padKey = ''; updateControl(); schedulePlan(); event.preventDefault();
   }
   if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
     const angle = Math.atan2(state.facing[0], state.facing[1]) + (event.key === 'ArrowLeft' ? 0.25 : -0.25);
-    state.facing = [Math.sin(angle), Math.cos(angle)]; schedulePlan(); event.preventDefault();
+    state.facing = [Math.sin(angle), Math.cos(angle)]; schedulePlan(35); event.preventDefault();
   }
 });
 addEventListener('keyup', event => {
@@ -347,12 +366,13 @@ addEventListener('keyup', event => {
   if (state.keys.delete(key)) { updateControl(); schedulePlan(); }
 });
 for (const button of document.querySelectorAll('.pad button')) {
-  const down = event => { state.keys.add(button.dataset.key); updateControl(); schedulePlan(); event.preventDefault(); };
-  const upHandler = event => { state.keys.delete(button.dataset.key); updateControl(); schedulePlan(); event.preventDefault(); };
-  button.addEventListener('pointerdown', down);
-  button.addEventListener('pointerup', upHandler);
-  button.addEventListener('pointercancel', upHandler);
-  button.addEventListener('pointerleave', upHandler);
+  button.setAttribute('aria-pressed', 'false');
+  button.addEventListener('click', event => {
+    state.padKey = state.padKey === button.dataset.key ? '' : button.dataset.key;
+    updateControl();
+    schedulePlan();
+    event.preventDefault();
+  });
 }
 showAllTargets.addEventListener('change', updateTargetVisibility);
 

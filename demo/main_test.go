@@ -167,7 +167,7 @@ func TestHeadlessChrome(t *testing.T) {
 				time.Sleep(100 * time.Millisecond)
 			}
 			var diagnostic any
-			_ = chromedp.Evaluate(`({status: document.documentElement.dataset.testStatus, sequence: document.documentElement.dataset.planSequence, scripts: [...document.scripts].map(s => ({src:s.src,type:s.type})), resources: performance.getEntriesByType("resource").map(r => r.name)})`, &diagnostic).Do(ctx)
+			_ = chromedp.Evaluate(`({status: document.documentElement.dataset.testStatus, sequence: document.documentElement.dataset.planSequence, moveX: document.documentElement.dataset.plannedMoveX, moveZ: document.documentElement.dataset.plannedMoveZ, scripts: [...document.scripts].map(s => ({src:s.src,type:s.type})), resources: performance.getEntriesByType("resource").map(r => r.name)})`, &diagnostic).Do(ctx)
 			return fmt.Errorf("%w for %s: %#v", errors.New("timeout waiting for browser"), description, diagnostic)
 		})
 	}
@@ -183,10 +183,15 @@ func TestHeadlessChrome(t *testing.T) {
 		chromedp.Navigate(server.URL+"/"),
 		waitFor(`document.documentElement.dataset.testStatus === "ready"`, "initial plan"),
 		chromedp.FullScreenshot(&initialScreenshot, 90),
-		chromedp.Evaluate(`dispatchEvent(new KeyboardEvent("keydown", {key:"w", bubbles:true}))`, nil),
-		waitFor(`Number(document.documentElement.dataset.planSequence) >= 2`, "forward plan"),
+		chromedp.Click(`.pad button[data-key="w"]`, chromedp.ByQuery),
+		waitFor(`Number(document.documentElement.dataset.planSequence) >= 2 && document.documentElement.dataset.plannedMoveZ === "1"`, "forward pad-button plan"),
 		chromedp.FullScreenshot(&movingScreenshot, 90),
-		chromedp.Evaluate(`dispatchEvent(new KeyboardEvent("keyup", {key:"w", bubbles:true}))`, nil),
+		chromedp.Click(`.pad button[data-key="w"]`, chromedp.ByQuery),
+		waitFor(`Number(document.documentElement.dataset.planSequence) >= 3 && document.documentElement.dataset.plannedMoveX === "0" && document.documentElement.dataset.plannedMoveZ === "0"`, "pad-button stop plan"),
+		chromedp.Evaluate(`dispatchEvent(new KeyboardEvent("keydown", {key:"d", bubbles:true}))`, nil),
+		waitFor(`Number(document.documentElement.dataset.planSequence) >= 4 && document.documentElement.dataset.plannedMoveX === "1"`, "keyboard-right plan"),
+		chromedp.Evaluate(`dispatchEvent(new KeyboardEvent("keyup", {key:"d", bubbles:true}))`, nil),
+		waitFor(`Number(document.documentElement.dataset.planSequence) >= 5 && document.documentElement.dataset.plannedMoveX === "0" && document.documentElement.dataset.plannedMoveZ === "0"`, "keyboard stop plan"),
 		chromedp.Navigate(server.URL+"/?test=1"),
 		waitFor(`document.documentElement.dataset.testStatus === "passed" || document.documentElement.dataset.testStatus === "failed"`, "style-and-turn self-test"),
 		chromedp.Text("#test-result", &message, chromedp.ByQuery),
