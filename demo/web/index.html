@@ -20,10 +20,15 @@
       </div>
       <label for="style-select">Upstream pose style</label>
       <select id="style-select" aria-label="Motion style"></select>
+      <div class="target-frame-control">
+        <label for="target-frame">Inspect placed target <output id="target-frame-label" for="target-frame">T3</output></label>
+        <input id="target-frame" type="range" min="0" max="3" step="1" value="3" aria-label="Target frame">
+      </div>
       <div class="view-options">
-        <label><input id="show-all-targets" type="checkbox" checked> Show all four target poses</label>
+        <label><input id="show-all-targets" type="checkbox"> Overlay all four consecutive poses</label>
         <button id="reset-camera" type="button">Reset camera</button>
       </div>
+      <p class="target-help">T0–T3 are consecutive 30 FPS constraints, so their exact positions are intentionally close.</p>
       <p class="camera-help">Drag to orbit · wheel to zoom · tap a pad direction to move, tap it again to stop</p>
       <div class="pad" aria-label="Directional controls">
         <button data-key="w" data-x="0" data-z="1" aria-label="Walk forward">W</button>

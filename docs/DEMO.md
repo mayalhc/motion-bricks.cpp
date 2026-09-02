@@ -5,8 +5,9 @@ through the PureGo binding and serves an embedded Three.js viewer. It renders
 the released 34-joint G1 hierarchy directly from MotionBricks root
 translations and local XYZW joint rotations; it does not require MuJoCo or a
 skinned mesh. Solid cyan cylinders and round joints identify the generated
-character. Orange diamond-jointed ghost skeletons identify the four placed
-style-pose constraints supplied to the planner.
+character. An orange diamond-jointed ghost skeleton identifies a selected
+placed style-pose constraint supplied to the planner; all four constraints can
+be overlaid for inspection.
 
 ## Build and run
 
@@ -38,7 +39,11 @@ direction without changing the current travel vector. The selector switches
 among all `.mbstyle` files found in the style directory, including the 15
 converted upstream styles. Drag over the viewport to orbit, use the wheel to
 zoom, and use **Reset camera** to restore the automatically framed view. The
-target toggle switches between all four ghosts and the final target only.
+camera follows only the animated skeleton, so target placement never pulls the
+view away from the character. The T0–T3 slider selects one fully visible target
+pose. **Overlay all four consecutive poses** reveals the complete constraint
+window. These are adjacent 30 FPS constraint frames rather than four distant
+waypoints, so their exact world positions are intentionally close together.
 
 `-device` accepts `cpu`, `vulkan`, or `auto`. The server deliberately binds to
 localhost by default. Model inference is serialized while sessions keep
@@ -80,10 +85,11 @@ With the generated assets present, CTest registers `motionbricks-go-demo` when
 Go and Chromium are available. The test starts an in-process HTTP server,
 loads the real native model, plans an initial `walk` chunk, then uses headless
 Chromium to select `walk_zombie`, turn right, plan another chunk, render the
-34-joint generated hierarchy plus all four target ghosts, and capture initial,
+34-joint generated hierarchy plus the target inspector, and capture initial,
 forward-motion, and style-and-turn screenshots. It uses real Chrome click and
 keyboard events and asserts forward-pad movement, pad stop, keyboard movement,
-and keyboard stop commands before the visual self-test.
+keyboard stop, animated-skeleton camera anchoring, individual target selection,
+and the four-pose overlay before the visual self-test.
 
 The Go tests can also be run directly:
 

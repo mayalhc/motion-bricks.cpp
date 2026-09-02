@@ -7,6 +7,8 @@ const planInfo = document.querySelector('#plan-info');
 const targetInfo = document.querySelector('#target-info');
 const testResult = document.querySelector('#test-result');
 const showAllTargets = document.querySelector('#show-all-targets');
+const targetFrame = document.querySelector('#target-frame');
+const targetFrameLabel = document.querySelector('#target-frame-label');
 const resetCamera = document.querySelector('#reset-camera');
 const query = new URLSearchParams(location.search);
 
@@ -169,6 +171,15 @@ class SkeletonRig {
     this.bones[0].visible = visible;
     if (this.label) this.label.visible = visible;
   }
+
+  setOpacity(opacity) {
+    for (const material of [this.boneMaterial, this.jointMaterial, this.rootMaterial]) {
+      material.opacity = opacity;
+      material.transparent = opacity < 1;
+      material.depthWrite = opacity >= 0.95;
+    }
+    if (this.label) this.label.material.opacity = opacity;
+  }
 }
 
 function makeLine(color, dashed = false) {
@@ -198,13 +209,11 @@ function makeSkeletons(joints) {
     radius: 0.022, jointRadius: 0.034, rootRadius: 0.062,
     opacity: 1, diamonds: false, renderOrder: 5,
   });
-  const opacities = [0.16, 0.25, 0.42, 0.9];
   for (let frame = 0; frame < 4; frame++) {
     state.targetRigs.push(new SkeletonRig(joints, {
       color: 0xff763b, jointColor: 0xffb06b, rootColor: 0xff4f8b,
       emissive: 0x7b1f00, rootEmissive: 0x790025, emissiveIntensity: 1,
-      radius: frame === 3 ? 0.018 : 0.012, jointRadius: frame === 3 ? 0.032 : 0.023,
-      rootRadius: frame === 3 ? 0.056 : 0.042, opacity: opacities[frame], diamonds: true,
+      radius: 0.018, jointRadius: 0.032, rootRadius: 0.056, opacity: 0.9, diamonds: true,
       renderOrder: 8 + frame, label: `T${frame}`, labelColor: frame === 3 ? '#ffb477' : '#c97354',
       labelHeight: 0.34 + (3 - frame) * 0.11,
     }));
@@ -214,11 +223,23 @@ function makeSkeletons(joints) {
 }
 
 function updateTargetVisibility() {
+  const frames = state.targets?.frames ?? 0;
+  const maximum = Math.max(0, frames - 1);
+  targetFrame.max = String(maximum);
+  const selected = THREE.MathUtils.clamp(Number(targetFrame.value), 0, maximum);
+  targetFrame.value = String(selected);
+  targetFrameLabel.textContent = `T${selected}`;
+  const overlay = showAllTargets.checked;
+  const overlayOpacities = [0.16, 0.25, 0.42, 0.9];
   for (let frame = 0; frame < state.targetRigs.length; frame++) {
-    const exists = Boolean(state.targets) && frame < state.targets.frames;
-    state.targetRigs[frame].setVisible(exists && (showAllTargets.checked || frame === state.targets.frames - 1));
+    const exists = frame < frames;
+    state.targetRigs[frame].setOpacity(overlay ? overlayOpacities[frame] : 0.9);
+    state.targetRigs[frame].setVisible(exists && (overlay || frame === selected));
   }
-  state.targetPath.visible = Boolean(state.targets) && showAllTargets.checked;
+  state.targetPath.visible = frames > 0;
+  targetInfo.textContent = frames > 0
+    ? (overlay ? `${frames} consecutive constraints overlaid` : `T${selected} of ${frames} consecutive constraints`)
+    : '—';
 }
 
 const cameraView = {yaw: 0.68, pitch: 0.24, distance: 4.8, dragging: false, x: 0, y: 0};
@@ -291,7 +312,6 @@ function useMotion(response, plannedMove = state.move) {
   state.playhead = 0;
   state.lastTime = performance.now();
   planInfo.textContent = `${response.motion.frames} frames · ${response.style.replaceAll('_', ' ')}`;
-  targetInfo.textContent = `${response.targets.frames} placed constraints`;
   statusElement.textContent = 'Playing';
   document.documentElement.dataset.planSequence = String(Number(document.documentElement.dataset.planSequence || 0) + 1);
   document.documentElement.dataset.plannedMoveX = String(plannedMove[0]);
@@ -375,13 +395,11 @@ for (const button of document.querySelectorAll('.pad button')) {
   });
 }
 showAllTargets.addEventListener('change', updateTargetVisibility);
+targetFrame.addEventListener('input', updateTargetVisibility);
 
 function updateCamera() {
   visibleBounds.makeEmpty();
   for (const marker of state.rig.jointMeshes) visibleBounds.expandByPoint(marker.position);
-  for (const rig of state.targetRigs) {
-    if (rig.group.visible) for (const marker of rig.jointMeshes) visibleBounds.expandByPoint(marker.position);
-  }
   visibleBounds.getCenter(focus);
   const horizontal = Math.cos(cameraView.pitch) * cameraView.distance;
   desiredCamera.set(
@@ -430,14 +448,33 @@ async function selfTest() {
   }
   renderMotion(2);
   renderer.render(scene, camera);
-  const visibleTargets = state.targetRigs.filter(rig => rig.group.visible).length;
-  if (!renderer.domElement.width || state.rig.bones.length !== 34 || visibleTargets !== 4) {
+  let visibleTargets = state.targetRigs.filter(rig => rig.group.visible).length;
+  if (!renderer.domElement.width || state.rig.bones.length !== 34 || visibleTargets !== 1 || !state.targetRigs[3].group.visible) {
     throw new Error('animated and target skeletons were not rendered');
   }
+  const expectedFocus = new THREE.Vector3();
+  const animatedBounds = new THREE.Box3();
+  for (const marker of state.rig.jointMeshes) animatedBounds.expandByPoint(marker.position);
+  animatedBounds.getCenter(expectedFocus);
+  if (focus.distanceTo(expectedFocus) > 1e-6) throw new Error('camera is not anchored to the animated skeleton');
+  targetFrame.value = '1';
+  updateTargetVisibility();
+  if (!state.targetRigs[1].group.visible || state.targetRigs.filter(rig => rig.group.visible).length !== 1) {
+    throw new Error('target-frame inspector did not select T1');
+  }
+  showAllTargets.checked = true;
+  updateTargetVisibility();
+  visibleTargets = state.targetRigs.filter(rig => rig.group.visible).length;
+  if (visibleTargets !== 4) throw new Error('four-pose target overlay did not render');
+  showAllTargets.checked = false;
+  targetFrame.value = '3';
+  updateTargetVisibility();
   document.documentElement.dataset.animatedJoints = String(state.rig.bones.length);
-  document.documentElement.dataset.targetFrames = String(visibleTargets);
+  document.documentElement.dataset.targetFrames = String(response.targets.frames);
+  document.documentElement.dataset.visibleTargets = '1';
+  document.documentElement.dataset.cameraSubject = 'animated';
   document.documentElement.dataset.testStatus = 'passed';
-  testResult.textContent = `Headless check passed: solid model + ${visibleTargets} target ghosts, ${alternate.name}, right turn`;
+  testResult.textContent = `Headless check passed: animated-camera anchor + target inspector/overlay, ${alternate.name}, right turn`;
 }
 
 async function start() {
