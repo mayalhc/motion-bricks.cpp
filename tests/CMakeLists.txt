@@ -65,6 +65,7 @@ find_program(MOTIONBRICKS_GO_EXECUTABLE go)
 if(MOTIONBRICKS_GO_EXECUTABLE AND NOT MOTIONBRICKS_SANITIZE)
     add_test(NAME motionbricks-purego-abi
         COMMAND "${CMAKE_COMMAND}" -E env
+            "CGO_ENABLED=0"
             "MOTIONBRICKS_LIB=$<TARGET_FILE:motionbricks_shared>"
             "${MOTIONBRICKS_GO_EXECUTABLE}" test ./...)
     set_tests_properties(motionbricks-purego-abi PROPERTIES
@@ -77,6 +78,7 @@ if(MOTIONBRICKS_GO_EXECUTABLE AND NOT MOTIONBRICKS_SANITIZE)
        EXISTS "${MOTIONBRICKS_REFERENCE_STYLES}/walk.mbstyle")
         add_test(NAME motionbricks-go-demo
             COMMAND "${CMAKE_COMMAND}" -E env
+                "CGO_ENABLED=0"
                 "MOTIONBRICKS_LIB=$<TARGET_FILE:motionbricks_shared>"
                 "MOTIONBRICKS_MODEL=${MOTIONBRICKS_REFERENCE_BUNDLE}"
                 "MOTIONBRICKS_STYLES=${MOTIONBRICKS_REFERENCE_STYLES}"

@@ -43,6 +43,20 @@ The non-neural ABI and validation subset can also be built without GGML:
 cmake -S . -B build/debug -G Ninja -DMOTIONBRICKS_ENABLE_GGML=OFF
 ```
 
+The Go binding and demo use PureGo to load `libmotionbricks` at runtime; they
+do not use cgo or `import "C"`. Once the native shared library has been built,
+the Go components therefore need no C compiler and can be built with cgo
+explicitly disabled:
+
+```sh
+cd demo
+CGO_ENABLED=0 go build -o ../build/debug/bin/motionbricks-demo .
+```
+
+`CGO_ENABLED=0` is optional but recommended for making this property explicit
+in builds and CI. It affects only the Go build—the native C++ library is still
+built separately with CMake.
+
 The sanitizer lane is:
 
 ```sh
@@ -106,3 +120,9 @@ converted upstream styles. It uses the reusable PureGo binding and the same
 stateful native agent as other applications. See the
 [demo guide](docs/DEMO.md) for build, run, architecture, and headless-Chromium
 test instructions.
+
+## License
+
+motion-bricks.cpp is licensed under the [Apache License 2.0](LICENSE). Bundled
+third-party components retain their own licenses; the vendored Three.js files
+are covered by `demo/web/vendor/THREE-LICENSE.txt`.

@@ -4,6 +4,12 @@ Don't modify this unless instructed.
 
 # Questions to loop back to
 
+- camera controls, zoom pan etc
+- Set a new target for parity, exactly what components should we select for that?
+- where is the C API documentation
+- Are low-level functions exposed so things like styles can be handle externally? could someone just use it for inference?
+- camera relative WASD keys
+
 # End goal
 
 We want to use motion-bricks.cpp with kimodo.cpp animation key-frames and we want to be able to use these in a web demo.
@@ -15,6 +21,10 @@ Eventually, we want to have have a configurable list of movements, that include 
 The motion-bricks.cpp library should expose a C API for FFI which is compatible with libraries like purego. So purego can't predict struct layouts, so struct based interfaces should have a constructor for allocating structs and getters and setters.
 
 The demo server should be written in Go and use purego (or similar). The frontend should use plain HTML/CSS and three.js.
+
+# Bonus Goal
+
+Use motion-bricks.cpp with a physically simulated robot in MuJoco or a web browser simulator.
 
 # Process
 
@@ -29,3 +39,4 @@ The demo server should be written in Go and use purego (or similar). The fronten
 - Don't rely on the current machine's paths, use distro agnostic paths and env vars. parameterise anything that we need to specify in the CMake file or a .env
 - We need to fuzz the C++ components except for GGUF input (we trust that GGML has that covered). We should do that with the ASan and UBSAN enabled.
 - We should use GGML as git submodule and if we need to patch it for any reason we can apply patches during the project configuration phase
+- Use headless chrome (from nix) to perform QA after changes. Use a few different actions and take screenshots before during and after

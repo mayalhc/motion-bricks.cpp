@@ -490,6 +490,145 @@ applicable, duration equality, and contact equality. Vulkan has its own
 documented tolerances but must preserve duration and discrete code decisions
 on the exemplar suite unless an explicitly reviewed near-tie is present.
 
+### Automated upstream sessions and observational tracing
+
+The reference harness should drive the released upstream demo without a human
+keyboard and record both numerical traces and a MuJoCo preview. Numerical
+traces are the parity authority. Video is a synchronized diagnostic artifact,
+not a pixel-exact test oracle.
+
+Instrumentation must remain observational. In particular, adding target-pose
+visualization must not alter inference inputs, controller state, random-number
+consumption, playback timing, MuJoCo state, or final numerical output. Use the
+following intervention order, stopping as soon as the required value is
+available:
+
+1. call an existing public method and copy its returned value in the capture
+   script;
+2. wrap an existing method or register a PyTorch forward hook from the capture
+   script;
+3. add an optional no-op trace callback at a stable method boundary;
+4. make a small upstream source edit only when a value is otherwise confined
+   to a local variable;
+5. never refactor or reorder model/controller calculations merely to expose a
+   trace.
+
+Before adding internal taps, run the unmodified pinned upstream revision at
+least twice with the same scripted controls and seeds. Record the final motion
+features, MuJoCo qpos, valid lengths, modes, and replan frame indices using
+only values already returned by the demo classes. This establishes both the
+baseline and any numerical nondeterminism inherent to the reference CUDA
+environment. Discrete outputs must repeat exactly. Float tolerances for the
+instrumentation check must be no wider than the variation observed between
+the two unmodified runs.
+
+After each instrumentation change, repeat the same session with tracing off
+and on. Both runs must match the unmodified baseline: exact for masks, modes,
+seeds, duration choices and pose codes; bitwise for deterministic CPU values;
+and within the measured baseline envelope for CUDA floats. Reject or redesign
+any tap that changes those results. The recorder must not call random
+functions, mutate a tensor or dictionary owned by upstream, change dtype or
+device, enable gradients, or retain a view that upstream later modifies. It
+copies with `detach().clone()` and performs CPU transfer only after the value
+has been consumed by the upstream calculation.
+
+The initial taps are:
+
+| Boundary | Upstream location | Trace values |
+|---|---|---|
+| playback context | `full_navigation_agent.get_context_*` | four qpos frames and motion features |
+| controller | `WASD_controller.generate_control_signals` | scripted keys, mode, movement/facing vectors, allowed durations |
+| spring | `_generate_spring_model_position_and_heading` | start and target root positions/headings |
+| placed target poses | `_generate_target_joint_transforms` | four global joint positions/rotations and root positions |
+| sparse model input | `_generate_inbetween_frames` | global/local root values, poses, masks and requested/allowed durations |
+| root network | root-backbone forward hook | duration logits, selected duration and predicted root path |
+| pose network | pose-backbone forward hook | pose logits, selected codes and conditioning mask |
+| VQ decoder | decoder forward hook | quantized input, conditions, masks and normalized decoded motion |
+| composed inference | `motion_inference.predict` | valid length and global/local motion representations |
+| playback output | `generate_new_frames`/`get_next_frame` | raw qpos, blended qpos, cursor and replan event |
+
+Prefer explicit trace calls for controller-local values and forward hooks for
+neural modules. The existing `info` argument to `motion_inference.predict` may
+carry copied debug values, but normal inference must continue to work with it
+absent. Large layer-by-layer captures are enabled for one planning event at a
+time rather than every playback frame.
+
+The scripted session driver supplies `control_info["key_pressed"]`, so it does
+not require an OS keyboard listener. It uses a fixed camera proxy because the
+WASD controller derives movement from viewer-camera orientation. NumPy,
+PyTorch and per-plan MotionBricks seeds are explicit. An initial scenario is:
+
+- 60 frames idle;
+- 60 frames walking forward;
+- 45 frames walking through a right turn;
+- 60 frames released to idle;
+- 60 frames walking with a distinctive style such as `walk_zombie`;
+- 60 frames released and allowed to settle.
+
+Each scenario directory contains a manifest, JSONL control/replan events,
+Safetensors files for planning boundaries and playback, and optional media:
+
+```text
+session-idle-walk-turn/
+  manifest.json
+  controls.jsonl
+  events.jsonl
+  plan-000.safetensors
+  plan-001.safetensors
+  playback.safetensors
+  preview.mp4
+  snapshots/
+```
+
+The manifest records the upstream commit, checkpoint/config hashes, scenario
+version, all relevant demo flags, dtype/device, Python/PyTorch/CUDA/MuJoCo
+versions, seeds, FPS and coordinate conventions. Do not use pickle for fixture
+data. Each planning file identifies tensors by semantic name, shape and dtype.
+
+Generate video in a second, offline pass from the stored qpos and target-pose
+traces. Use `mujoco.Renderer`, assign the captured qpos, call `mj_forward`, and
+render with a deterministic camera at 30 FPS. On Linux use EGL when available
+and OSMesa as a software fallback. Save selected lossless PNG frames alongside
+the MP4. This separation ensures rendering load cannot affect controller
+cadence or inference.
+
+Visible target keyframes are also an offline rendering concern. Draw the four
+captured target skeletons as orange/magenta ghost geometry in an `MjvScene` or
+as a post-render overlay. Do not add bodies or constraints to the physics XML,
+write target poses into `mjData`, or reuse mutable tensors from inference. The
+animated G1 remains opaque and visually distinct. Overlay the absolute frame,
+plan number, mode/style, movement/facing vectors, selected duration and replan
+markers. If an interactive upstream target view is later useful, it is a
+separate optional patch and must pass the same trace-off/trace-on
+non-interference gate.
+
+The port replays each captured planning event at the same public boundaries.
+It compares integer decisions exactly, floats with boundary-specific
+tolerances, quaternions by sign-invariant angular distance, and joint positions
+after FK. Session checks cover replan timing, valid buffer lengths, root and
+joint velocity continuity, and style transitions. The idle scenario must also
+confirm that upstream performs only the expected transition into idle, then
+ceases idle-to-idle replanning and eventually holds a numerically constant
+frame.
+
+Implement this work in gates:
+
+1. create the external scripted driver and capture unmodified final outputs;
+2. prove same-seed repeatability and write the baseline manifest;
+3. add controller/model-input taps one boundary at a time, running the
+   non-interference comparison after each change;
+4. add neural forward hooks and capture one complete planning event;
+5. capture the full idle/walk/turn/style session and import it into the C++
+   parity runner;
+6. render MuJoCo video and target ghosts offline from the accepted traces;
+7. add the scenario to CPU CI and keep video generation as an optional local
+   or artifact-producing job.
+
+**Exit:** a fresh pinned upstream environment reproduces the accepted session;
+trace-off and trace-on outputs match the pre-instrumentation baseline; the C++
+runtime passes every captured boundary; and the synchronized MuJoCo preview
+shows playback and target keyframes without participating in inference.
+
 ## Safety, fuzzing, and validation
 
 GGUF parsing remains GGML's responsibility, but motion-bricks validates bundle
@@ -557,12 +696,18 @@ PureGo without any mirrored struct.
 
 - Extract root, pose, VQ, stats, skeleton, and original style tensors to
   safetensors/JSON in the trusted container.
+- Capture the unmodified scripted upstream session before adding internal
+  instrumentation, then apply the observational tracing and non-interference
+  gates defined above.
 - Add forward hooks/capture for every required layer and preprocessing stage.
 - Capture the exemplar matrix above, including random sampling inputs.
+- Render synchronized MuJoCo and target-keyframe previews offline from the
+  accepted numerical traces.
 - Build the safetensors-to-GGUF converter and bundle inspector.
 
-**Exit:** source and converted tensor inventories match exactly and all bundle
-identities are validated.
+**Exit:** source and converted tensor inventories match exactly, all bundle
+identities are validated, and trace-enabled upstream output matches the
+unmodified baseline.
 
 ### 3. Deterministic motion/controller math
 

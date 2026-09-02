@@ -17,9 +17,14 @@ the main README. Then build the Go application:
 ```sh
 cmake --build --preset debug
 cd demo
-go build -o ../build/debug/bin/motionbricks-demo .
+CGO_ENABLED=0 go build -o ../build/debug/bin/motionbricks-demo .
 cd ..
 ```
+
+The demo and reusable Go binding call the native shared library through
+PureGo. They contain no cgo bridge and do not require a C compiler during the
+Go build, so cgo can be disabled. This does not remove the separate C++/CMake
+build that produces `libmotionbricks`.
 
 Run it from the repository root:
 
@@ -99,7 +104,7 @@ MOTIONBRICKS_LIB=../build/debug/libmotionbricks.so \
 MOTIONBRICKS_MODEL=../generated/g1-f32 \
 MOTIONBRICKS_STYLES=../generated/styles \
 MOTIONBRICKS_CHROME="$(command -v chromium)" \
-go test -v ./...
+CGO_ENABLED=0 go test -v ./...
 ```
 
 Without the native asset environment variables, the parser test still runs
