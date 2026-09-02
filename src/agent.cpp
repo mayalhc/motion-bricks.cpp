@@ -129,6 +129,7 @@ mb_status build_constraints(mb_agent & agent, const mb_command & command,
         global[1] = style.global_root_positions[source_frame * 3U + 1U] + style_root_joint[1];
         global[2] = target_root_z[frame];
         global[3] = std::cos(target_heading[frame]); global[4] = std::sin(target_heading[frame]);
+        std::copy_n(global, 3U, result.target_root_translations.data() + frame * 3U);
         float * pose = result.poses.data() + (frame + 4U) * external_pose_width;
         for (std::uint32_t joint = 1; joint < g1_joint_count; ++joint) {
             const float * source = style.global_joint_positions.data() +
@@ -137,15 +138,27 @@ mb_status build_constraints(mb_agent & agent, const mb_command & command,
             std::copy(position.begin(), position.end(), pose + (joint - 1U) * 3U);
         }
         constexpr std::size_t rotation_offset = 99U;
+        std::array<mat3, g1_joint_count> target_global_rotations{};
         for (std::uint32_t joint = 0; joint < g1_joint_count; ++joint) {
             const float * source = style.global_joint_rotations.data() +
                 (static_cast<std::size_t>(source_frame) * g1_joint_count + joint) * 9U;
             mat3 source_matrix{};
             std::copy_n(source, 9, source_matrix.begin());
             const auto matrix = multiply(correction_matrix, source_matrix);
+            target_global_rotations[joint] = matrix;
             float * six = pose + rotation_offset + joint * 6U;
             six[0]=matrix[0]; six[1]=matrix[3]; six[2]=matrix[6];
             six[3]=matrix[1]; six[4]=matrix[4]; six[5]=matrix[7];
+        }
+        for (std::uint32_t joint = 0; joint < g1_joint_count; ++joint) {
+            mat3 local = target_global_rotations[joint];
+            const auto parent = agent.model->joint_parents[joint];
+            if (parent >= 0)
+                local = multiply(transpose(target_global_rotations[static_cast<std::size_t>(parent)]),
+                                 target_global_rotations[joint]);
+            const auto xyzw = matrix_xyzw(local);
+            std::copy(xyzw.begin(), xyzw.end(), result.target_local_rotations_xyzw.begin() +
+                static_cast<std::ptrdiff_t>((static_cast<std::size_t>(frame) * g1_joint_count + joint) * 4U));
         }
     }
     for (std::uint32_t frame = 0; frame < 3U; ++frame) {
@@ -217,7 +230,14 @@ mb_status plan_agent(mb_agent & agent, const mb_command & command,
     transition_constraints constraints;
     auto status = build_constraints(agent, command, *style, constraints, reason);
     if (status != MB_OK) return status;
-    return run_transition(*agent.model, constraints, output, nullptr, reason);
+    status = run_transition(*agent.model, constraints, output, nullptr, reason);
+    if (status != MB_OK) return status;
+    output.target_frames = 4U;
+    output.target_root_translations.assign(constraints.target_root_translations.begin(),
+                                           constraints.target_root_translations.end());
+    output.target_local_rotations_xyzw.assign(constraints.target_local_rotations_xyzw.begin(),
+                                              constraints.target_local_rotations_xyzw.end());
+    return MB_OK;
 }
 
 mb_status advance_agent(mb_agent & agent, std::uint32_t frames,

@@ -99,9 +99,10 @@ Kimodo GLB-to-`.mbstyle` conversion remains subsequent integration work.
 
 ## Interactive demo
 
-The initial Go/Three.js demo renders the model's 34-joint skeleton and lets
-you steer it with W/A/S/D, turn its facing with the arrow keys, and switch
-among the converted upstream styles. It uses the reusable PureGo binding and
-the same stateful native agent as other applications. See the
+The initial Go/Three.js demo renders the model's 34-joint skeleton alongside
+the four actual placed target-keyframe ghosts. It lets you steer with W/A/S/D,
+turn facing with the arrow keys, orbit/zoom the camera, and switch among the
+converted upstream styles. It uses the reusable PureGo binding and the same
+stateful native agent as other applications. See the
 [demo guide](docs/DEMO.md) for build, run, architecture, and headless-Chromium
 test instructions.

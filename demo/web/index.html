@@ -14,8 +14,17 @@
       <p class="eyebrow">MOTIONBRICKS / G1</p>
       <h1>Whole-body motion</h1>
       <p class="lede">Move with WASD. The character faces its travel direction; arrow keys turn independently.</p>
+      <div class="legend" aria-label="Skeleton legend">
+        <span><i class="animated-swatch"></i>Animated model</span>
+        <span><i class="target-swatch"></i>Target keyframes</span>
+      </div>
       <label for="style-select">Upstream pose style</label>
       <select id="style-select" aria-label="Motion style"></select>
+      <div class="view-options">
+        <label><input id="show-all-targets" type="checkbox" checked> Show all four target poses</label>
+        <button id="reset-camera" type="button">Reset camera</button>
+      </div>
+      <p class="camera-help">Drag to orbit · wheel to zoom · hold W to place targets ahead</p>
       <div class="pad" aria-label="Directional controls">
         <button data-key="w" data-x="0" data-z="1" aria-label="Walk forward">W</button>
         <button data-key="a" data-x="-1" data-z="0" aria-label="Walk left">A</button>
@@ -25,6 +34,7 @@
       <dl>
         <div><dt>Status</dt><dd id="status">Loading model…</dd></div>
         <div><dt>Plan</dt><dd id="plan-info">—</dd></div>
+        <div><dt>Targets</dt><dd id="target-info">—</dd></div>
         <div><dt>Backend</dt><dd>native GGML</dd></div>
       </dl>
       <p id="test-result" role="status"></p>

@@ -517,4 +517,36 @@ mb_status mb_motion_get_local_rotations_xyzw(const mb_motion * value, const floa
     });
 }
 
+mb_status mb_motion_get_target_frame_count(const mb_motion * value, uint64_t * output,
+                                           char * error, uint64_t error_capacity) {
+    return guard(error, error_capacity, [&]() -> mb_status {
+        if (value == nullptr || output == nullptr)
+            return fail(MB_INVALID_ARGUMENT, error, error_capacity, "motion or output is null");
+        *output = value->target_frames;
+        return MB_OK;
+    });
+}
+
+mb_status mb_motion_get_target_root_translations(const mb_motion * value, const float ** output, uint64_t * values,
+                                                 char * error, uint64_t error_capacity) {
+    return guard(error, error_capacity, [&]() -> mb_status {
+        if (value == nullptr || output == nullptr || values == nullptr)
+            return fail(MB_INVALID_ARGUMENT, error, error_capacity, "motion or output is null");
+        *output = value->target_root_translations.data();
+        *values = value->target_root_translations.size();
+        return MB_OK;
+    });
+}
+
+mb_status mb_motion_get_target_local_rotations_xyzw(const mb_motion * value, const float ** output, uint64_t * values,
+                                                    char * error, uint64_t error_capacity) {
+    return guard(error, error_capacity, [&]() -> mb_status {
+        if (value == nullptr || output == nullptr || values == nullptr)
+            return fail(MB_INVALID_ARGUMENT, error, error_capacity, "motion or output is null");
+        *output = value->target_local_rotations_xyzw.data();
+        *values = value->target_local_rotations_xyzw.size();
+        return MB_OK;
+    });
+}
+
 } // extern "C"

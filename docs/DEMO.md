@@ -4,7 +4,9 @@ The initial demo is a local Go application that calls `libmotionbricks`
 through the PureGo binding and serves an embedded Three.js viewer. It renders
 the released 34-joint G1 hierarchy directly from MotionBricks root
 translations and local XYZW joint rotations; it does not require MuJoCo or a
-skinned mesh.
+skinned mesh. Solid cyan cylinders and round joints identify the generated
+character. Orange diamond-jointed ghost skeletons identify the four placed
+style-pose constraints supplied to the planner.
 
 ## Build and run
 
@@ -33,7 +35,9 @@ Open `http://127.0.0.1:8080/`. Use W/A/S/D or the on-screen pad to set the
 travel direction. Left/right arrow keys rotate the facing direction without
 changing the current travel vector. The selector switches among all
 `.mbstyle` files found in the style directory, including the 15 converted
-upstream styles.
+upstream styles. Drag over the viewport to orbit, use the wheel to zoom, and
+use **Reset camera** to restore the automatically framed view. The target
+toggle switches between all four ghosts and the final target only.
 
 `-device` accepts `cpu`, `vulkan`, or `auto`. The server deliberately binds to
 localhost by default. Model inference is serialized while sessions keep
@@ -45,16 +49,26 @@ The browser creates a session, receives a 30 FPS animation chunk, and asks for
 a replacement chunk when controls change or playback approaches the end.
 Each request contains movement, facing, style, seed, and the number of frames
 already consumed. The Go server advances that session's native agent and
-returns owned animation data as JSON:
+returns owned animation data and target constraints as JSON:
 
 - root translations: `[frames, 3]`;
 - local joint rotations: `[frames, 34, 4]`, XYZW;
+- placed target roots: `[4, 3]`;
+- placed target local rotations: `[4, 34, 4]`, XYZW;
 - G1 joint names, parent indices, and neutral positions from the loaded model.
 
-The browser builds `THREE.Bone` objects from the returned hierarchy and
-renders them with `THREE.SkeletonHelper`. Animation chunks are immutable in
-JavaScript; a later version can replace JSON with a binary streaming protocol
-without changing the native API.
+The native target data is captured after style-frame sampling, spring-based
+world placement, and heading correction. The ghosts therefore visualize the
+actual planner inputs. The viewer does not force them in front: forward travel
+normally places them ahead, while stops and turns can make them overlap the
+character or move sideways.
+
+The browser builds `THREE.Bone` objects from the returned hierarchy and draws
+solid cylinders/spheres for the generated skeleton and translucent
+cylinders/diamonds for target poses. It also draws generated and target root
+paths on the floor. Animation chunks are immutable in JavaScript; a later
+version can replace JSON with a binary streaming protocol without changing
+the native API.
 
 Three.js r180 is vendored under `demo/web/vendor` so the demo has no runtime
 CDN dependency.
@@ -65,7 +79,8 @@ With the generated assets present, CTest registers `motionbricks-go-demo` when
 Go and Chromium are available. The test starts an in-process HTTP server,
 loads the real native model, plans an initial `walk` chunk, then uses headless
 Chromium to select `walk_zombie`, turn right, plan another chunk, render the
-34-bone hierarchy, and capture a screenshot.
+34-joint generated hierarchy plus all four target ghosts, and capture initial,
+forward-motion, and style-and-turn screenshots.
 
 The Go tests can also be run directly:
 

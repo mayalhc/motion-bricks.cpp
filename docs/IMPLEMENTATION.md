@@ -164,6 +164,8 @@ The public animation boundary should be independent of MuJoCo:
 
 - `root_translation`: row-major F32 `[frames, 3]`, Y-up motion space;
 - `local_rotation_xyzw`: row-major F32 `[frames, 34, 4]`;
+- debug target roots: row-major F32 `[4, 3]`;
+- debug target local rotations: row-major F32 `[4, 34, 4]`;
 - frame rate: 30 FPS for the released model;
 - joint names, parents, and rest offsets: queried from model metadata;
 - optional contacts: row-major F32 `[frames, 4]`.
@@ -305,6 +307,14 @@ mb_status mb_motion_get_root_translations(const mb_motion *,
 mb_status mb_motion_get_local_rotations_xyzw(const mb_motion *,
                                              const float **borrowed, uint64_t *values,
                                              char *, uint64_t);
+mb_status mb_motion_get_target_frame_count(const mb_motion *, uint64_t *out,
+                                           char *, uint64_t);
+mb_status mb_motion_get_target_root_translations(const mb_motion *,
+                                                 const float **borrowed, uint64_t *values,
+                                                 char *, uint64_t);
+mb_status mb_motion_get_target_local_rotations_xyzw(const mb_motion *,
+                                                    const float **borrowed, uint64_t *values,
+                                                    char *, uint64_t);
 ```
 
 The final header will add getters for every option setter and explicit lifetime

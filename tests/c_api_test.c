@@ -56,6 +56,7 @@ int main(void) {
     assert(model == 0 && error[0] != '\0');
     assert(mb_model_get_parameter_count(0, &seed, error, sizeof(error)) == MB_INVALID_ARGUMENT);
     assert(mb_model_get_neutral_joint_position(0, 0, &x, &y, &z, error, sizeof(error)) == MB_INVALID_ARGUMENT);
+    assert(mb_motion_get_target_frame_count(0, &seed, error, sizeof(error)) == MB_INVALID_ARGUMENT);
 
     {
         char tiny[2] = {'x', 'x'};

@@ -64,9 +64,10 @@ type planRequest struct {
 	Advance uint32     `json:"advance"`
 }
 type planResponse struct {
-	Session string     `json:"session"`
-	Style   string     `json:"style"`
-	Motion  *mb.Motion `json:"motion"`
+	Session string        `json:"session"`
+	Style   string        `json:"style"`
+	Motion  *mb.Motion    `json:"motion"`
+	Targets *mb.Keyframes `json:"targets"`
 }
 
 func parseDevice(value string) (mb.Device, error) {
@@ -256,6 +257,7 @@ func (s *demoServer) routes() http.Handler {
 
 func securityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "no-referrer")
 		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'")
@@ -310,7 +312,7 @@ func (s *demoServer) createSession(w http.ResponseWriter, r *http.Request) {
 		apiError(w, http.StatusInternalServerError, err)
 		return
 	}
-	jsonResponse(w, http.StatusOK, planResponse{Session: id, Style: style.Name, Motion: motion})
+	jsonResponse(w, http.StatusOK, planResponse{Session: id, Style: style.Name, Motion: motion, Targets: motion.Targets})
 }
 
 func (s *demoServer) plan(w http.ResponseWriter, r *http.Request) {
@@ -336,7 +338,7 @@ func (s *demoServer) plan(w http.ResponseWriter, r *http.Request) {
 		apiError(w, http.StatusInternalServerError, err)
 		return
 	}
-	jsonResponse(w, http.StatusOK, planResponse{Session: request.Session, Style: style.Name, Motion: motion})
+	jsonResponse(w, http.StatusOK, planResponse{Session: request.Session, Style: style.Name, Motion: motion, Targets: motion.Targets})
 }
 
 func main() {

@@ -50,24 +50,46 @@ int main(int argc, char ** argv) {
         !check(mb_agent_plan(agent, command, &motion, error, sizeof error), "plan", error))
         return 1;
     std::uint64_t frames = 0, joints = 0, root_values = 0, rotation_values = 0;
+    std::uint64_t target_frames = 0, target_root_values = 0, target_rotation_values = 0;
     const float * roots = nullptr;
     const float * rotations = nullptr;
+    const float * target_roots = nullptr;
+    const float * target_rotations = nullptr;
     if (!check(mb_motion_get_frame_count(motion, &frames, error, sizeof error), "frames", error) ||
         !check(mb_motion_get_joint_count(motion, &joints, error, sizeof error), "joints", error) ||
         !check(mb_motion_get_root_translations(motion, &roots, &root_values, error, sizeof error),
                "roots", error) ||
         !check(mb_motion_get_local_rotations_xyzw(motion, &rotations, &rotation_values,
-                                                  error, sizeof error), "rotations", error))
+                                                  error, sizeof error), "rotations", error) ||
+        !check(mb_motion_get_target_frame_count(motion, &target_frames, error, sizeof error),
+               "target frames", error) ||
+        !check(mb_motion_get_target_root_translations(motion, &target_roots, &target_root_values,
+                                                      error, sizeof error), "target roots", error) ||
+        !check(mb_motion_get_target_local_rotations_xyzw(motion, &target_rotations,
+                                                         &target_rotation_values,
+                                                         error, sizeof error), "target rotations", error))
         return 1;
     bool valid = frames >= 24U && frames <= 64U && frames % 4U == 0U && joints == 34U &&
-                 root_values == frames * 3U && rotation_values == frames * joints * 4U;
+                 root_values == frames * 3U && rotation_values == frames * joints * 4U &&
+                 target_frames == 4U && target_root_values == target_frames * 3U &&
+                 target_rotation_values == target_frames * joints * 4U;
     valid = valid && std::all_of(roots, roots + root_values,
         [](float value) { return std::isfinite(value); });
     valid = valid && std::all_of(rotations, rotations + rotation_values,
         [](float value) { return std::isfinite(value); });
+    valid = valid && std::all_of(target_roots, target_roots + target_root_values,
+        [](float value) { return std::isfinite(value); });
+    valid = valid && std::all_of(target_rotations, target_rotations + target_rotation_values,
+        [](float value) { return std::isfinite(value); });
     float maximum_norm_error = 0.0F;
     for (std::uint64_t index = 0; index < frames * joints; ++index) {
         const float * q = rotations + index * 4U;
+        maximum_norm_error = std::max(maximum_norm_error,
+            std::abs(std::sqrt(q[0]*q[0]+q[1]*q[1]+q[2]*q[2]+q[3]*q[3]) - 1.0F));
+    }
+    valid = valid && maximum_norm_error < 2.0e-4F;
+    for (std::uint64_t index = 0; index < target_frames * joints; ++index) {
+        const float * q = target_rotations + index * 4U;
         maximum_norm_error = std::max(maximum_norm_error,
             std::abs(std::sqrt(q[0]*q[0]+q[1]*q[1]+q[2]*q[2]+q[3]*q[3]) - 1.0F));
     }

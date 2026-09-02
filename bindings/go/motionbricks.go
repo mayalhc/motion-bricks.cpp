@@ -58,6 +58,9 @@ type Library struct {
 	motionJoints          func(uintptr, unsafe.Pointer, unsafe.Pointer, uint64) uint32
 	motionRoots           func(uintptr, unsafe.Pointer, unsafe.Pointer, unsafe.Pointer, uint64) uint32
 	motionRotations       func(uintptr, unsafe.Pointer, unsafe.Pointer, unsafe.Pointer, uint64) uint32
+	motionTargetFrames    func(uintptr, unsafe.Pointer, unsafe.Pointer, uint64) uint32
+	motionTargetRoots     func(uintptr, unsafe.Pointer, unsafe.Pointer, unsafe.Pointer, uint64) uint32
+	motionTargetRotations func(uintptr, unsafe.Pointer, unsafe.Pointer, unsafe.Pointer, uint64) uint32
 }
 
 func Open(path string) (*Library, error) {
@@ -101,6 +104,9 @@ func Open(path string) (*Library, error) {
 	register(&library.motionJoints, "mb_motion_get_joint_count")
 	register(&library.motionRoots, "mb_motion_get_root_translations")
 	register(&library.motionRotations, "mb_motion_get_local_rotations_xyzw")
+	register(&library.motionTargetFrames, "mb_motion_get_target_frame_count")
+	register(&library.motionTargetRoots, "mb_motion_get_target_root_translations")
+	register(&library.motionTargetRotations, "mb_motion_get_target_local_rotations_xyzw")
 	if version := library.abiVersion(); version != 1 {
 		library.Close()
 		return nil, fmt.Errorf("motionbricks ABI version %d is unsupported", version)
@@ -186,6 +192,13 @@ type Joint struct {
 	Position [3]float32 `json:"position"`
 }
 type Motion struct {
+	Frames    uint64     `json:"frames"`
+	Joints    uint64     `json:"joints"`
+	Roots     []float32  `json:"roots"`
+	Rotations []float32  `json:"rotations"`
+	Targets   *Keyframes `json:"-"`
+}
+type Keyframes struct {
 	Frames    uint64    `json:"frames"`
 	Joints    uint64    `json:"joints"`
 	Roots     []float32 `json:"roots"`
@@ -360,8 +373,8 @@ func (a *Agent) Plan(command *Command) (*Motion, error) {
 	}
 	defer a.model.library.motionFree(handle)
 	motion := &Motion{}
-	var rootsPointer, rotationsPointer uintptr
-	var rootsCount, rotationsCount uint64
+	var rootsPointer, rotationsPointer, targetRootsPointer, targetRotationsPointer uintptr
+	var rootsCount, rotationsCount, targetRootsCount, targetRotationsCount uint64
 	if err := a.model.library.check("get frame count", a.model.library.motionFrames(handle, unsafe.Pointer(&motion.Frames), errorPointer(buffer), uint64(len(buffer))), buffer); err != nil {
 		return nil, err
 	}
@@ -374,7 +387,24 @@ func (a *Agent) Plan(command *Command) (*Motion, error) {
 	if err := a.model.library.check("get rotations", a.model.library.motionRotations(handle, unsafe.Pointer(&rotationsPointer), unsafe.Pointer(&rotationsCount), errorPointer(buffer), uint64(len(buffer))), buffer); err != nil {
 		return nil, err
 	}
+	targets := &Keyframes{Joints: motion.Joints}
+	if err := a.model.library.check("get target frame count", a.model.library.motionTargetFrames(handle, unsafe.Pointer(&targets.Frames), errorPointer(buffer), uint64(len(buffer))), buffer); err != nil {
+		return nil, err
+	}
+	if err := a.model.library.check("get target roots", a.model.library.motionTargetRoots(handle, unsafe.Pointer(&targetRootsPointer), unsafe.Pointer(&targetRootsCount), errorPointer(buffer), uint64(len(buffer))), buffer); err != nil {
+		return nil, err
+	}
+	if err := a.model.library.check("get target rotations", a.model.library.motionTargetRotations(handle, unsafe.Pointer(&targetRotationsPointer), unsafe.Pointer(&targetRotationsCount), errorPointer(buffer), uint64(len(buffer))), buffer); err != nil {
+		return nil, err
+	}
+	if rootsCount != motion.Frames*3 || rotationsCount != motion.Frames*motion.Joints*4 ||
+		targetRootsCount != targets.Frames*3 || targetRotationsCount != targets.Frames*targets.Joints*4 {
+		return nil, errors.New("native motion data has inconsistent dimensions")
+	}
 	motion.Roots = append([]float32(nil), unsafe.Slice((*float32)(unsafe.Pointer(rootsPointer)), rootsCount)...)
 	motion.Rotations = append([]float32(nil), unsafe.Slice((*float32)(unsafe.Pointer(rotationsPointer)), rotationsCount)...)
+	targets.Roots = append([]float32(nil), unsafe.Slice((*float32)(unsafe.Pointer(targetRootsPointer)), targetRootsCount)...)
+	targets.Rotations = append([]float32(nil), unsafe.Slice((*float32)(unsafe.Pointer(targetRotationsPointer)), targetRotationsCount)...)
+	motion.Targets = targets
 	return motion, nil
 }

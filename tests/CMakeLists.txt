@@ -90,8 +90,18 @@ if(MOTIONBRICKS_GO_EXECUTABLE AND NOT MOTIONBRICKS_SANITIZE)
 endif()
 
 if(MOTIONBRICKS_SANITIZE)
-    foreach(target motionbricks-c-api-test motionbricks-cpp-wrapper-test motionbricks-cli)
-        target_compile_options(${target} PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
-        target_link_options(${target} PRIVATE -fsanitize=address,undefined)
+    foreach(target
+            motionbricks-c-api-test
+            motionbricks-cpp-wrapper-test
+            motionbricks-pose-parity-test
+            motionbricks-decoder-parity-test
+            motionbricks-root-parity-test
+            motionbricks-agent-integration-test
+            motionbricks-agent-backend-parity-test
+            motionbricks-cli)
+        if(TARGET ${target})
+            target_compile_options(${target} PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
+            target_link_options(${target} PRIVATE -fsanitize=address,undefined)
+        endif()
     endforeach()
 endif()

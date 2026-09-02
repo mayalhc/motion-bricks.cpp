@@ -66,4 +66,7 @@ struct mb_motion {
     std::uint64_t joints = 0;
     std::vector<float> root_translations;
     std::vector<float> local_rotations_xyzw;
+    std::uint64_t target_frames = 0;
+    std::vector<float> target_root_translations;
+    std::vector<float> target_local_rotations_xyzw;
 };

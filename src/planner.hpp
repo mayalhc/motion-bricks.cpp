@@ -21,6 +21,8 @@ struct transition_constraints {
     std::array<std::uint8_t, 8U> has_local_root{1,1,1,0,1,1,1,1};
     std::array<std::uint8_t, 8U> has_poses{1,1,1,1,1,1,1,1};
     std::array<std::uint8_t, 11U> allowed_tokens{1,1,1,1,1,1,1,1,1,1,1};
+    std::array<float, 4U * 3U> target_root_translations{};
+    std::array<float, 4U * g1_joint_count * 4U> target_local_rotations_xyzw{};
 };
 
 mb_status run_transition(const mb_model & model,

@@ -161,6 +161,15 @@ MB_API mb_status mb_motion_get_root_translations(const mb_motion * value,
 MB_API mb_status mb_motion_get_local_rotations_xyzw(const mb_motion * value,
                                                     const float ** output, uint64_t * values,
                                                     char * error, uint64_t error_capacity);
+/* The four placed style-pose constraints actually supplied to the planner. */
+MB_API mb_status mb_motion_get_target_frame_count(const mb_motion * value, uint64_t * output,
+                                                  char * error, uint64_t error_capacity);
+MB_API mb_status mb_motion_get_target_root_translations(const mb_motion * value,
+                                                        const float ** output, uint64_t * values,
+                                                        char * error, uint64_t error_capacity);
+MB_API mb_status mb_motion_get_target_local_rotations_xyzw(const mb_motion * value,
+                                                           const float ** output, uint64_t * values,
+                                                           char * error, uint64_t error_capacity);
 
 #ifdef __cplusplus
 }
