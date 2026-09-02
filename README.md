@@ -9,14 +9,6 @@ GGUF loading, root/duration planning, pose-token prediction, VQ decoding,
 output. CPU and Vulkan use the same public API and preserve the same duration
 and pose-token decisions in the reference suite.
 
-## Design
-
-- [Human-led design](docs/motions-bricks.md)
-- [Implementation sketch and plan](docs/IMPLEMENTATION.md)
-- [Versioned formats](docs/FORMATS.md)
-- [Go/Three.js demo](docs/DEMO.md)
-- [Pinned upstream reference](reference/README.md)
-
 ## Build
 
 The normal build uses CMake and does not depend on Nix:
@@ -26,6 +18,19 @@ cmake --preset debug
 cmake --build --preset debug
 ctest --preset debug
 ```
+
+Configuration downloads and SHA-256-verifies the published 0.73 GB G1 F32
+GGUF and style bundles into `generated/` when they are not already present.
+The same operation can be run explicitly:
+
+```sh
+python scripts/download_gguf_weights.py
+```
+
+For an offline or source-only build, preserve an existing local bundle or use
+`cmake --preset debug -DMOTIONBRICKS_DOWNLOAD_MODELS=OFF`. The repository and
+revision are configurable with `MOTIONBRICKS_MODEL_REPOSITORY` and
+`MOTIONBRICKS_MODEL_REVISION`.
 
 On NixOS, enter the reproducible development shell first:
 
@@ -111,6 +116,21 @@ motion as its next context.
 The current implementation covers original preprocessed G1 styles. Direct
 Kimodo GLB-to-`.mbstyle` conversion remains subsequent integration work.
 
+## Weights
+
+Ready-to-run native weights and all 15 upstream style primitives are published
+as [MotionBricks-G1-GGML](https://huggingface.co/LocalAI-io/MotionBricks-G1-GGML)
+under the Hugging Face `LocalAI-io` organisation. NVIDIA currently distributes
+MotionBricks checkpoints through Git LFS in
+[`NVlabs/GR00T-WholeBodyControl`](https://github.com/NVlabs/GR00T-WholeBodyControl/tree/a0732b642c0333077e127a2f56ab0014c196bca4/motionbricks),
+not a separate Hugging Face model repository, so the model card links to that
+pinned upstream revision. The downloader verifies the version-controlled
+distribution manifest before accepting any file.
+
+The default build is pinned to Hugging Face commit
+`cc2a47603dbc203a4f18f35dd06ed3611833f506` rather than the mutable `main`
+branch.
+
 ## Interactive demo
 
 The initial Go/Three.js demo renders the model's 34-joint skeleton alongside
@@ -121,8 +141,21 @@ stateful native agent as other applications. See the
 [demo guide](docs/DEMO.md) for build, run, architecture, and headless-Chromium
 test instructions.
 
+## Design
+
+- [Human-led design](docs/motions-bricks.md)
+- [Implementation sketch and plan](docs/IMPLEMENTATION.md)
+- [Versioned formats](docs/FORMATS.md)
+- [Go/Three.js demo](docs/DEMO.md)
+- [Pinned upstream reference](reference/README.md)
+
 ## License
 
-motion-bricks.cpp is licensed under the [Apache License 2.0](LICENSE). Bundled
-third-party components retain their own licenses; the vendored Three.js files
-are covered by `demo/web/vendor/THREE-LICENSE.txt`.
+motion-bricks.cpp source code is licensed under the
+[Apache License 2.0](LICENSE). NVIDIA's original model weights and converted
+GGUF/style distributions remain under the NVIDIA Open Model License reproduced
+with the published model. It permits derivative models and redistribution with
+conditions including retention of the agreement and attribution, Trustworthy
+AI terms, and trade compliance. Bundled third-party components retain their own
+licenses; the vendored Three.js files are covered by
+`demo/web/vendor/THREE-LICENSE.txt`.

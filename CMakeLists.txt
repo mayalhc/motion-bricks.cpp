@@ -15,8 +15,33 @@ option(MOTIONBRICKS_ENABLE_GGML "Use the pinned GGML submodule when present" ON)
 option(MOTIONBRICKS_ENABLE_VULKAN "Enable the GGML Vulkan backend" ON)
 option(MOTIONBRICKS_ENABLE_FUZZERS "Build libFuzzer targets" OFF)
 option(MOTIONBRICKS_SANITIZE "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
+option(MOTIONBRICKS_DOWNLOAD_MODELS "Download and verify the published runtime model/style bundle" ON)
 set(MOTIONBRICKS_GGML_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ggml" CACHE PATH
     "Pinned GGML submodule source directory")
+set(MOTIONBRICKS_MODEL_REPOSITORY "LocalAI-io/MotionBricks-G1-GGML" CACHE STRING
+    "Hugging Face repository containing the runtime bundle")
+set(MOTIONBRICKS_MODEL_REVISION "cc2a47603dbc203a4f18f35dd06ed3611833f506" CACHE STRING
+    "Pinned Hugging Face revision containing the runtime bundle")
+set(MOTIONBRICKS_REFERENCE_BUNDLE "${CMAKE_CURRENT_SOURCE_DIR}/generated/g1-f32" CACHE PATH
+    "Downloaded or locally converted MotionBricks runtime bundle")
+set(MOTIONBRICKS_REFERENCE_STYLES "${CMAKE_CURRENT_SOURCE_DIR}/generated/styles" CACHE PATH
+    "Downloaded or locally converted MotionBricks style bundle")
+
+if(MOTIONBRICKS_ENABLE_GGML AND MOTIONBRICKS_DOWNLOAD_MODELS)
+    find_package(Python3 COMPONENTS Interpreter REQUIRED)
+    execute_process(
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/scripts/download_gguf_weights.py"
+            --output "${CMAKE_CURRENT_SOURCE_DIR}/generated"
+            --repo "${MOTIONBRICKS_MODEL_REPOSITORY}"
+            --revision "${MOTIONBRICKS_MODEL_REVISION}"
+        RESULT_VARIABLE MOTIONBRICKS_MODEL_DOWNLOAD_RESULT
+        COMMAND_ECHO STDOUT)
+    if(NOT MOTIONBRICKS_MODEL_DOWNLOAD_RESULT EQUAL 0)
+        message(FATAL_ERROR
+            "MotionBricks model download/verification failed. Set "
+            "MOTIONBRICKS_DOWNLOAD_MODELS=OFF for a source-only build.")
+    endif()
+endif()
 
 set(MOTIONBRICKS_SOURCES
     src/capi.cpp

@@ -6,12 +6,8 @@ add_executable(motionbricks-cpp-wrapper-test cpp_wrapper_test.cpp)
 target_link_libraries(motionbricks-cpp-wrapper-test PRIVATE motionbricks::motionbricks)
 add_test(NAME motionbricks-cpp-wrapper COMMAND motionbricks-cpp-wrapper-test)
 
-set(MOTIONBRICKS_REFERENCE_BUNDLE "${PROJECT_SOURCE_DIR}/generated/g1-f32" CACHE PATH
-    "Optional local converted MotionBricks bundle for parity tests")
 set(MOTIONBRICKS_REFERENCE_FIXTURES "${PROJECT_SOURCE_DIR}/generated/fixtures-gguf" CACHE PATH
     "Optional local GGUF reference fixtures for parity tests")
-set(MOTIONBRICKS_REFERENCE_STYLES "${PROJECT_SOURCE_DIR}/generated/styles" CACHE PATH
-    "Optional local converted MotionBricks styles for integration tests")
 if(MOTIONBRICKS_ENABLE_GGML AND
    EXISTS "${MOTIONBRICKS_REFERENCE_BUNDLE}/pose.gguf" AND
    EXISTS "${MOTIONBRICKS_REFERENCE_FIXTURES}/pose.gguf")

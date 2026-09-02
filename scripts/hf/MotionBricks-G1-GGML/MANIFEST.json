@@ -1,0 +1,114 @@
+{
+  "files": [
+    {
+      "bytes": 1101,
+      "path": "g1-f32/manifest.json",
+      "sha256": "35321e8f760316e9a0e73619e23af4089deeedcc8efe7e7266fddbdb8d3c3cfc"
+    },
+    {
+      "bytes": 546369984,
+      "path": "g1-f32/pose.gguf",
+      "sha256": "6db82e5a67a355052f283bbcab104b71ecfc333dc8d9017c3812eb6f9650756e"
+    },
+    {
+      "bytes": 136504000,
+      "path": "g1-f32/root.gguf",
+      "sha256": "46268d77e5c15449d68a39ce6ec7145e9eb457c5114d5dca934bd3ab539b29db"
+    },
+    {
+      "bytes": 5472,
+      "path": "g1-f32/support.gguf",
+      "sha256": "5d41cae4bc494e612ef19e25f599351aafbc9ef1cb46d4ac3f1e42bb7ab07200"
+    },
+    {
+      "bytes": 49753440,
+      "path": "g1-f32/vq-decoder.gguf",
+      "sha256": "6a1114b6906b07fab9deb18d602b4e731e1b5794318b1643ffd0605692f62d1e"
+    },
+    {
+      "bytes": 9408,
+      "path": "styles/elbow_crawling.mbstyle",
+      "sha256": "8ce3e04aa92d91628f10824a2f19a0cc0ba5a9c16008cd95e091b05c9528dc54"
+    },
+    {
+      "bytes": 50624,
+      "path": "styles/hand_crawling.mbstyle",
+      "sha256": "5687f3cd037d7d0942df180727729e04c08d6f0af48b32e9bf793729c5c69fd8"
+    },
+    {
+      "bytes": 50624,
+      "path": "styles/idle.mbstyle",
+      "sha256": "ae800a700d29a8d1082d32c2c82e893aa292c6c18848ffd2c0c67c6f4d64531e"
+    },
+    {
+      "bytes": 14304,
+      "path": "styles/injured_walk.mbstyle",
+      "sha256": "b7b62643281b46ceb0a37fc336f201565b595afda21e93a2cbfc3dda3509a779"
+    },
+    {
+      "bytes": 3114,
+      "path": "styles/manifest.json",
+      "sha256": "762f7eadb5653af53bb9a03f812b724845b3af6967b76c5f52546de97f1edac4"
+    },
+    {
+      "bytes": 50624,
+      "path": "styles/slow_walk.mbstyle",
+      "sha256": "9e59ec536d22f61c53b430aecabbef92e694d6ab5caef077ac7d0cfbca6d73f0"
+    },
+    {
+      "bytes": 34112,
+      "path": "styles/stealth_walk.mbstyle",
+      "sha256": "4d2d82e40f9f43c1c15c201b45e30dfb194e4a28cf7fd8a23870394c4589d87a"
+    },
+    {
+      "bytes": 50624,
+      "path": "styles/walk.mbstyle",
+      "sha256": "c1657f56795f26ac22ab944cc6676dd9a7c12e37fc654b08e744a18963597d59"
+    },
+    {
+      "bytes": 17664,
+      "path": "styles/walk_boxing.mbstyle",
+      "sha256": "32349902a37d79f049e52a98929680ff18f9300a270ace1709f16d5d87d70892"
+    },
+    {
+      "bytes": 126400,
+      "path": "styles/walk_gun.mbstyle",
+      "sha256": "6b5f0f6febb92b1fbb090f246e48c4762c23f7d101bc2b371fd93a13a1425245"
+    },
+    {
+      "bytes": 34112,
+      "path": "styles/walk_happy_dance.mbstyle",
+      "sha256": "0900c03fbdcaf4f5fac8e4e3d4ebde5965a8cf561a4ecab07db256a136f3e2e8"
+    },
+    {
+      "bytes": 9408,
+      "path": "styles/walk_left.mbstyle",
+      "sha256": "7660e369e64bc711b153caba744c1ccb3d763060f87b368969fd1ec4819694e5"
+    },
+    {
+      "bytes": 9408,
+      "path": "styles/walk_right.mbstyle",
+      "sha256": "106419603b7844d3f2f804b4debbff47b1ec71969f8dd4c4b4dbaef36d4e5c83"
+    },
+    {
+      "bytes": 149504,
+      "path": "styles/walk_scared.mbstyle",
+      "sha256": "b88776e3d57c7008e94e2a51c8da19d0715a3a42565b47c2019cabb40b13578d"
+    },
+    {
+      "bytes": 34112,
+      "path": "styles/walk_stealth.mbstyle",
+      "sha256": "bbb4b69e29cd78cad102da433dc553f6dc16b6710f9a7d4c7df0148f1492f778"
+    },
+    {
+      "bytes": 149504,
+      "path": "styles/walk_zombie.mbstyle",
+      "sha256": "9ce2769010ecb20c5ad38d36f841ec72e29dd1e4556dff8f0ecb258855a9705b"
+    }
+  ],
+  "format": "motionbricks-gguf-distribution-v1",
+  "repository": "LocalAI-io/MotionBricks-G1-GGML",
+  "upstream_license": "NVIDIA Open Model License",
+  "upstream_repository": "NVlabs/GR00T-WholeBodyControl",
+  "upstream_revision": "a0732b642c0333077e127a2f56ab0014c196bca4"
+}

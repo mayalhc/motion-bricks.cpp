@@ -21,6 +21,7 @@
               git-lfs
               go
               python3
+              python3Packages.huggingface-hub
               python3Packages.numpy
               python3Packages.safetensors
               shaderc
