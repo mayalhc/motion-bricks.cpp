@@ -45,14 +45,19 @@ jobs:
             ninja-build \
             build-essential
 
+      - name: Set up MSVC environment (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
       - name: Configure CMake (Windows)
         if: runner.os == 'Windows'
         run: >
           cmake
           -S .
           -B build
-          -G "Visual Studio 17 2022"
-          -A x64
+          -G Ninja
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/install
           -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
           -DMOTIONBRICKS_ENABLE_VULKAN=OFF
           -DMOTIONBRICKS_DOWNLOAD_MODELS=OFF
@@ -84,7 +89,7 @@ jobs:
       - name: Bundle GGML runtime libraries (Windows)
         if: runner.os == 'Windows'
         shell: bash
-        run: cp build/bin/${{ matrix.build_type }}/*.dll install/bin/
+        run: cp build/bin/*.dll install/bin/
 
       - name: Bundle GGML runtime libraries (Linux/macOS)
         if: runner.os != 'Windows'
