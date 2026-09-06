@@ -1,0 +1,84 @@
+name: Build and Release MotionBricks Binaries
+
+on:
+  push:
+    tags:
+      - 'v*' # v1.0.0 같은 태그를 푸시할 때 자동으로 빌드가 켜집니다.
+  workflow_dispatch: # 깃허브 웹사이트에서 수동으로 실행하고 싶을 때 쓰는 옵션입니다.
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        # 일반 유저가 주로 쓰는 Windows 환경을 기본으로 타겟팅합니다.
+        os: [windows-latest, ubuntu-latest]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive # ggml 등 연결된 서브모듈까지 전부 긁어옵니다.
+
+    - name: Setup CMake
+      uses: jwlawrence/actions-setup-cmake@v2
+
+    - name: Setup Ninja (Windows & Linux Speedup)
+      uses: ashutoshvarma/setup-ninja@master
+      with:
+        version: 1.11.1
+
+    # Windows 빌드 단계
+    - name: Configure CMake (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DMOTIONBRICKS_DOWNLOAD_MODELS=OFF
+
+    - name: Build (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        cmake --build build --config Release
+
+    - name: Package Windows Binary
+      if: matrix.os == 'windows-latest'
+      run: |
+        compress-archive -Path build/bin/* -DestinationPath motionbricks-windows.zip
+
+    # Linux 빌드 단계
+    - name: Configure & Build (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DMOTIONBRICKS_DOWNLOAD_MODELS=OFF
+        cmake --build build --config Release
+        cd build/bin && tar -czvf ../../motionbricks-linux.tar.gz *
+
+    # 빌드된 완성품 파일(Artifact)을 깃허브에 임시 저장
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: binaries-${{ matrix.os }}
+        path: |
+          *.zip
+          *.tar.gz
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+    - name: Download Artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+        merge-multiple: true
+
+    # 빌드된 바이너리들을 깃허브 Release 페이지에 자동으로 업로드합니다.
+    - name: Create Release
+      uses: softprops/action-gh-release@v2
+      with:
+        files: |
+          artifacts/motionbricks-windows.zip
+          artifacts/motionbricks-linux.tar.gz
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
