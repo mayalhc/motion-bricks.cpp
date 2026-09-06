@@ -1,0 +1,126 @@
+name: CMake Build
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macos-latest
+        build_type:
+          - Release
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake \
+            ninja-build \
+            build-essential
+
+      - name: Set up MSVC environment (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      # 💡 [추가] Go 웹 서버 컴파일러 환경 셋팅 (전체 OS 대응)
+      - name: Set up Go environment
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Configure CMake (Windows)
+        if: runner.os == 'Windows'
+        run: >
+          cmake
+          -S .
+          -B build
+          -G Ninja
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/install
+          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          -DMOTIONBRICKS_ENABLE_VULKAN=OFF
+          -DMOTIONBRICKS_DOWNLOAD_MODELS=OFF
+
+      - name: Configure CMake (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: >
+          cmake
+          -S .
+          -B build
+          -G Ninja
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/install
+          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          -DMOTIONBRICKS_ENABLE_VULKAN=OFF
+          -DMOTIONBRICKS_DOWNLOAD_MODELS=OFF
+
+      - name: Build
+        run: cmake --build build --config ${{ matrix.build_type }} --parallel
+
+      - name: Run tests
+        working-directory: build
+        run: ctest -C ${{ matrix.build_type }} --output-on-failure
+        continue-on-error: true
+
+      - name: Install
+        run: cmake --install build --config ${{ matrix.build_type }} --prefix install
+
+      - name: Bundle GGML runtime libraries (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: cp build/bin/*.dll install/bin/
+
+      - name: Bundle GGML runtime libraries (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: cp build/bin/* install/lib/ || true
+
+      # 💡 [추가] C++ 라이브러리가 install/에 다 들어왔으므로, 이제 Go 웹 데모를 빌드해 집어넣습니다.
+      - name: Build Go Web Demo
+        shell: bash
+        run: |
+          cd demo
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            CGO_ENABLED=0 go build -o ../install/bin/motionbricks-demo.exe .
+            # 웹 데모 구동에 필수인 웹 자산(Three.js 등)을 install 폴더 내부로 복사
+            mkdir -p ../install/bin/demo/web
+            cp -r web/* ../install/bin/demo/web/
+          else
+            CGO_ENABLED=0 go build -o ../install/bin/motionbricks-demo .
+            mkdir -p ../install/bin/demo/web
+            cp -r web/* ../install/bin/demo/web/
+          fi
+          cd ..
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: motion-bricks-${{ matrix.os }}
+          path: install/
+          if-no-files-found: error
