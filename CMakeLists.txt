@@ -61,6 +61,8 @@ add_library(motionbricks::motionbricks ALIAS motionbricks_shared)
 set_target_properties(motionbricks_shared PROPERTIES
     OUTPUT_NAME motionbricks
     EXPORT_NAME motionbricks
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
     CXX_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN YES
     VERSION ${PROJECT_VERSION}

@@ -1,9 +1,13 @@
 add_executable(motionbricks-c-api-test c_api_test.c)
 target_link_libraries(motionbricks-c-api-test PRIVATE motionbricks::motionbricks)
+set_target_properties(motionbricks-c-api-test PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 add_test(NAME motionbricks-c-api COMMAND motionbricks-c-api-test)
 
 add_executable(motionbricks-cpp-wrapper-test cpp_wrapper_test.cpp)
 target_link_libraries(motionbricks-cpp-wrapper-test PRIVATE motionbricks::motionbricks)
+set_target_properties(motionbricks-cpp-wrapper-test PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 add_test(NAME motionbricks-cpp-wrapper COMMAND motionbricks-cpp-wrapper-test)
 
 set(MOTIONBRICKS_REFERENCE_FIXTURES "${PROJECT_SOURCE_DIR}/generated/fixtures-gguf" CACHE PATH
