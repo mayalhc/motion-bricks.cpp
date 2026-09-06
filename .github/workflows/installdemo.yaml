@@ -45,15 +45,25 @@ jobs:
             ninja-build \
             build-essential
 
+      - name: Install Ninja (Windows)
+        if: runner.os == 'Windows'
+        run: choco install ninja -y
+
+      - name: Install Ninja (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ninja
+
       - name: Set up MSVC environment (Windows)
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
 
-      # 💡 [추가] Go 웹 서버 컴파일러 환경 셋팅 (전체 OS 대응)
       - name: Set up Go environment
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version: '1.26'
+          cache-dependency-path: |
+            demo/go.sum
+            bindings/go/go.sum
 
       - name: Configure CMake (Windows)
         if: runner.os == 'Windows'
@@ -95,30 +105,25 @@ jobs:
       - name: Bundle GGML runtime libraries (Windows)
         if: runner.os == 'Windows'
         shell: bash
-        run: cp build/bin/*.dll install/bin/
+        run: mkdir -p install/bin && cp build/bin/*.dll install/bin/ || true
 
       - name: Bundle GGML runtime libraries (Linux/macOS)
         if: runner.os != 'Windows'
-        run: cp build/bin/* install/lib/ || true
+        run: mkdir -p install/lib && cp build/bin/* install/lib/ || true
 
-      # 💡 [추가] C++ 라이브러리가 install/에 다 들어왔으므로, 이제 Go 웹 데모를 빌드해 집어넣습니다.
       - name: Build Go Web Demo
         shell: bash
+        env:
+          CGO_ENABLED: "0"
         run: |
           cd demo
           if [ "${{ runner.os }}" = "Windows" ]; then
-            # CGO_ENABLED=0을 제거하고 순수 go build만 실행합니다.
             go build -o ../install/bin/motionbricks-demo.exe .
-            # 웹 데모 구동에 필수인 웹 자산(Three.js 등)을 install 폴더 내부로 복사
-            mkdir -p ../install/bin/demo/web
-            cp -r web/* ../install/bin/demo/web/
           else
             go build -o ../install/bin/motionbricks-demo .
-            mkdir -p ../install/bin/demo/web
-            cp -r web/* ../install/bin/demo/web/
           fi
-          cd ..
-
+          mkdir -p ../install/bin/demo/web
+          cp -r web/* ../install/bin/demo/web/
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
