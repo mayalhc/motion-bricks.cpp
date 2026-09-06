@@ -4,15 +4,15 @@ on:
   push:
     tags:
       - 'v*' # v1.0.0 같은 태그를 푸시할 때 자동으로 빌드가 켜집니다.
-  workflow_dispatch: # 깃허브 웹사이트에서 수동으로 실행하고 싶을 때 쓰는 옵션입니다.
+  workflow_dispatch: # 깃허브 웹사이트에서 수동으로 실행 가능
 
 jobs:
   build:
     name: Build on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false # 하나의 OS가 실패해도 다른 OS 빌드는 취소되지 않고 끝까지 진행됩니다.
       matrix:
-        # 일반 유저가 주로 쓰는 Windows 환경을 기본으로 타겟팅합니다.
         os: [windows-latest, ubuntu-latest]
 
     steps:
@@ -21,8 +21,9 @@ jobs:
       with:
         submodules: recursive # ggml 등 연결된 서브모듈까지 전부 긁어옵니다.
 
-    - name: Setup CMake
-      uses: jwact/setup-cmake@v1
+    # 💡 깃허브 가상 머신에 내장된 내장 CMake 버전을 확인하며 정상 작동하는지 체크합니다.
+    - name: Check CMake Version
+      run: cmake --version
 
     - name: Setup Ninja (Windows & Linux Speedup)
       uses: ashutoshvarma/setup-ninja@master
@@ -80,5 +81,9 @@ jobs:
         files: |
           artifacts/motionbricks-windows.zip
           artifacts/motionbricks-linux.tar.gz
+        tag_name: ${{ github.ref_name }}
+        name: Release ${{ github.ref_name }}
+        draft: false
+        prerelease: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
