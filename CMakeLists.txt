@@ -72,7 +72,7 @@ target_compile_definitions(motionbricks_shared PRIVATE MOTIONBRICKS_BUILD MOTION
 add_library(motionbricks_static STATIC ${MOTIONBRICKS_SOURCES})
 add_library(motionbricks::motionbricks_static ALIAS motionbricks_static)
 set_target_properties(motionbricks_static PROPERTIES
-    OUTPUT_NAME motionbricks
+    OUTPUT_NAME motionbricks-static
     EXPORT_NAME motionbricks_static)
 target_compile_definitions(motionbricks_static PRIVATE MOTIONBRICKS_BUILD)
 
