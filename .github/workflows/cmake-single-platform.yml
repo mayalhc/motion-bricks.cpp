@@ -1,89 +1,553 @@
-name: Build and Release MotionBricks Binaries
+# ─────────────────────────────────────────────────────────────────────────────
+# motion-bricks.cpp  –  Multi-platform CI / Release Build
+# Target: libmotionbricks shared library for Blender addon (Python ctypes/CFFI)
+#
+# Produces per-platform artifacts:
+#   Windows x64   → motionbricks.dll  + motionbricks.lib  (import lib)
+#   macOS  arm64  → libmotionbricks.dylib
+#   macOS  x86_64 → libmotionbricks.dylib
+#   Linux  x86_64 → libmotionbricks.so
+#
+# On a release tag the job uploads all four as a GitHub Release asset zip.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Build – All Platforms (Blender Addon)
 
 on:
   push:
-    tags:
-      - 'v*' # v1.0.0 같은 태그를 푸시할 때 자동으로 빌드가 켜집니다.
-  workflow_dispatch: # 깃허브 웹사이트에서 수동으로 실행 가능
+    branches: [ "main" ]
+    tags:     [ "v*.*.*" ]          # triggers release upload
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:                 # manual trigger from Actions tab
 
+# ── Global env ────────────────────────────────────────────────────────────────
+env:
+  # Pinned HF revision – keep in sync with CMakeLists.txt
+  MB_HF_REVISION: "cc2a47603dbc203a4f18f35dd06ed3611833f506"
+  MB_HF_REPO:     "LocalAI-io/MotionBricks-G1-GGML"
+  # Build type for all platforms
+  BUILD_TYPE: Release
+
+# ── Jobs ──────────────────────────────────────────────────────────────────────
 jobs:
-  build:
-    name: Build on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false # 하나의 OS가 실패해도 다른 OS 빌드는 취소되지 않고 끝까지 진행됩니다.
-      matrix:
-        os: [windows-latest, ubuntu-latest]
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 1. Windows x64  (MSVC + Ninja)
+  # ────────────────────────────────────────────────────────────────────────────
+  build-windows:
+    name: Windows x64
+    runs-on: windows-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        submodules: recursive # ggml 등 연결된 서브모듈까지 전부 긁어옵니다.
+      # ── Checkout ────────────────────────────────────────────────────────────
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
 
-    # 💡 깃허브 가상 머신에 내장된 내장 CMake 버전을 확인하며 정상 작동하는지 체크합니다.
-    - name: Check CMake Version
-      run: cmake --version
+      # ── Tool-chain ──────────────────────────────────────────────────────────
+      - name: Setup MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
 
-    - name: Setup Ninja (Windows & Linux Speedup)
-      uses: ashutoshvarma/setup-ninja@master
-      with:
-        version: 1.11.1
+      - name: Install Ninja
+        uses: seanmiddleditch/gha-setup-ninja@v4
 
-    # Windows 빌드 단계
-    - name: Configure CMake (Windows)
-      if: matrix.os == 'windows-latest'
-      run: |
-        cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DMOTIONBRICKS_DOWNLOAD_MODELS=OFF
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
 
-    - name: Build (Windows)
-      if: matrix.os == 'windows-latest'
-      run: |
-        cmake --build build --config Release
+      - name: Install Python deps (downloader)
+        run: pip install requests huggingface_hub
 
-    - name: Package Windows Binary
-      if: matrix.os == 'windows-latest'
-      run: |
-        compress-archive -Path build/bin/* -DestinationPath motionbricks-windows.zip
+      # ── Vulkan SDK (for GGML Vulkan backend) ────────────────────────────────
+      - name: Install Vulkan SDK
+        uses: humbletim/setup-vulkan-sdk@v1.2.0
+        with:
+          vulkan-query-version: latest
+          vulkan-components: Vulkan-Headers, Vulkan-Loader
+          vulkan-use-cache: true
 
-    # Linux 빌드 단계
-    - name: Configure & Build (Linux)
-      if: matrix.os == 'ubuntu-latest'
-      run: |
-        cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DMOTIONBRICKS_DOWNLOAD_MODELS=OFF
-        cmake --build build --config Release
-        cd build/bin && tar -czvf ../../motionbricks-linux.tar.gz *
+      # ── Download model weights ───────────────────────────────────────────────
+      - name: Download GGUF weights
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}   # optional; model is public
+        run: |
+          python scripts/download_gguf_weights.py `
+            --output generated `
+            --repo "${{ env.MB_HF_REPO }}" `
+            --revision "${{ env.MB_HF_REVISION }}"
 
-    # 빌드된 완성품 파일(Artifact)을 깃허브에 임시 저장
-    - name: Upload Artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: binaries-${{ matrix.os }}
-        path: |
-          *.zip
-          *.tar.gz
+      # ── Configure ────────────────────────────────────────────────────────────
+      - name: CMake Configure
+        run: |
+          cmake -S . -B build `
+            -G Ninja `
+            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} `
+            -DCMAKE_INSTALL_PREFIX=install `
+            -DMOTIONBRICKS_BUILD_TESTS=ON `
+            -DMOTIONBRICKS_ENABLE_GGML=ON `
+            -DMOTIONBRICKS_ENABLE_VULKAN=ON `
+            -DMOTIONBRICKS_DOWNLOAD_MODELS=OFF `
+            -DMOTIONBRICKS_REFERENCE_BUNDLE="${{ github.workspace }}/generated/g1-f32" `
+            -DMOTIONBRICKS_REFERENCE_STYLES="${{ github.workspace }}/generated/styles"
 
+      # ── Build ────────────────────────────────────────────────────────────────
+      - name: Build
+        run: cmake --build build --config ${{ env.BUILD_TYPE }} --parallel
+
+      # ── Test ─────────────────────────────────────────────────────────────────
+      - name: CTest
+        working-directory: build
+        run: ctest -C ${{ env.BUILD_TYPE }} --output-on-failure --parallel 4
+
+      # ── Install ──────────────────────────────────────────────────────────────
+      - name: Install
+        run: cmake --install build --config ${{ env.BUILD_TYPE }}
+
+      # ── Package for Blender addon ────────────────────────────────────────────
+      # Blender needs:  motionbricks.dll  and  motionbricks.lib (import library)
+      - name: Package addon lib (Windows)
+        shell: pwsh
+        run: |
+          $outDir = "addon-lib/windows-x64"
+          New-Item -ItemType Directory -Force -Path $outDir | Out-Null
+          # DLL (runtime)
+          Copy-Item install/bin/motionbricks.dll  $outDir -ErrorAction SilentlyContinue
+          # import library for link-time (if any C extension needs it)
+          Copy-Item install/lib/motionbricks.lib  $outDir -ErrorAction SilentlyContinue
+          # CLI for smoke-test
+          Copy-Item install/bin/motionbricks-cli.exe $outDir -ErrorAction SilentlyContinue
+          # Header (for addon that uses ctypes – optional but useful)
+          Copy-Item -Recurse install/include $outDir -ErrorAction SilentlyContinue
+          Write-Host "=== Packaged files ==="
+          Get-ChildItem -Recurse $outDir | Select-Object FullName
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: motionbricks-windows-x64
+          path: addon-lib/windows-x64/
+          retention-days: 30
+
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 2. macOS arm64  (Apple Silicon – Blender 4.x ships arm64 on macOS)
+  # ────────────────────────────────────────────────────────────────────────────
+  build-macos-arm64:
+    name: macOS arm64
+    runs-on: macos-14          # M1/M2 runner
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install build tools
+        run: |
+          brew update
+          brew install cmake ninja python@3.11
+
+      - name: Install Python deps
+        run: pip3 install requests huggingface_hub
+
+      - name: Download GGUF weights
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python3 scripts/download_gguf_weights.py \
+            --output generated \
+            --repo "${{ env.MB_HF_REPO }}" \
+            --revision "${{ env.MB_HF_REVISION }}"
+
+      - name: CMake Configure (arm64, no Vulkan – Metal via GGML is separate)
+        run: |
+          cmake -S . -B build \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_INSTALL_PREFIX=install \
+            -DMOTIONBRICKS_BUILD_TESTS=ON \
+            -DMOTIONBRICKS_ENABLE_GGML=ON \
+            -DMOTIONBRICKS_ENABLE_VULKAN=OFF \
+            -DMOTIONBRICKS_DOWNLOAD_MODELS=OFF \
+            -DMOTIONBRICKS_REFERENCE_BUNDLE="${{ github.workspace }}/generated/g1-f32" \
+            -DMOTIONBRICKS_REFERENCE_STYLES="${{ github.workspace }}/generated/styles"
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: CTest
+        working-directory: build
+        run: ctest --output-on-failure --parallel 4
+
+      - name: Install
+        run: cmake --install build
+
+      # Fix dylib rpath so Blender can load it from its addon folder
+      - name: Fix dylib install name
+        run: |
+          DYLIB=$(find install/lib -name "libmotionbricks*.dylib" | head -1)
+          install_name_tool -id "@loader_path/libmotionbricks.dylib" "$DYLIB"
+
+      - name: Package addon lib (macOS arm64)
+        run: |
+          outDir="addon-lib/macos-arm64"
+          mkdir -p "$outDir"
+          cp install/lib/libmotionbricks*.dylib "$outDir/"
+          cp install/bin/motionbricks-cli      "$outDir/" 2>/dev/null || true
+          cp -r install/include                "$outDir/" 2>/dev/null || true
+          echo "=== Packaged ==="
+          find "$outDir" -type f
+
+      - name: Upload macOS arm64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: motionbricks-macos-arm64
+          path: addon-lib/macos-arm64/
+          retention-days: 30
+
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 3. macOS x86_64  (Intel Macs – still relevant for older Blender users)
+  # ────────────────────────────────────────────────────────────────────────────
+  build-macos-x86_64:
+    name: macOS x86_64
+    runs-on: macos-13          # Intel runner
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install build tools
+        run: |
+          brew update
+          brew install cmake ninja python@3.11
+
+      - name: Install Python deps
+        run: pip3 install requests huggingface_hub
+
+      - name: Download GGUF weights
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python3 scripts/download_gguf_weights.py \
+            --output generated \
+            --repo "${{ env.MB_HF_REPO }}" \
+            --revision "${{ env.MB_HF_REVISION }}"
+
+      - name: CMake Configure (x86_64)
+        run: |
+          cmake -S . -B build \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+            -DCMAKE_OSX_ARCHITECTURES=x86_64 \
+            -DCMAKE_INSTALL_PREFIX=install \
+            -DMOTIONBRICKS_BUILD_TESTS=ON \
+            -DMOTIONBRICKS_ENABLE_GGML=ON \
+            -DMOTIONBRICKS_ENABLE_VULKAN=OFF \
+            -DMOTIONBRICKS_DOWNLOAD_MODELS=OFF \
+            -DMOTIONBRICKS_REFERENCE_BUNDLE="${{ github.workspace }}/generated/g1-f32" \
+            -DMOTIONBRICKS_REFERENCE_STYLES="${{ github.workspace }}/generated/styles"
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: CTest
+        working-directory: build
+        run: ctest --output-on-failure --parallel 4
+
+      - name: Install
+        run: cmake --install build
+
+      - name: Fix dylib install name
+        run: |
+          DYLIB=$(find install/lib -name "libmotionbricks*.dylib" | head -1)
+          install_name_tool -id "@loader_path/libmotionbricks.dylib" "$DYLIB"
+
+      - name: Package addon lib (macOS x86_64)
+        run: |
+          outDir="addon-lib/macos-x86_64"
+          mkdir -p "$outDir"
+          cp install/lib/libmotionbricks*.dylib "$outDir/"
+          cp install/bin/motionbricks-cli      "$outDir/" 2>/dev/null || true
+          cp -r install/include                "$outDir/" 2>/dev/null || true
+          echo "=== Packaged ==="
+          find "$outDir" -type f
+
+      - name: Upload macOS x86_64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: motionbricks-macos-x86_64
+          path: addon-lib/macos-x86_64/
+          retention-days: 30
+
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 4. Linux x86_64  (Ubuntu 22.04 – matches Blender's manylinux baseline)
+  # ────────────────────────────────────────────────────────────────────────────
+  build-linux:
+    name: Linux x86_64
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q \
+            cmake ninja-build \
+            python3 python3-pip \
+            libvulkan-dev glslang-tools \
+            patchelf
+
+      - name: Install Python deps
+        run: pip3 install requests huggingface_hub
+
+      - name: Download GGUF weights
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python3 scripts/download_gguf_weights.py \
+            --output generated \
+            --repo "${{ env.MB_HF_REPO }}" \
+            --revision "${{ env.MB_HF_REVISION }}"
+
+      - name: CMake Configure
+        run: |
+          cmake -S . -B build \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+            -DCMAKE_INSTALL_PREFIX=install \
+            -DMOTIONBRICKS_BUILD_TESTS=ON \
+            -DMOTIONBRICKS_ENABLE_GGML=ON \
+            -DMOTIONBRICKS_ENABLE_VULKAN=ON \
+            -DMOTIONBRICKS_DOWNLOAD_MODELS=OFF \
+            -DMOTIONBRICKS_REFERENCE_BUNDLE="${{ github.workspace }}/generated/g1-f32" \
+            -DMOTIONBRICKS_REFERENCE_STYLES="${{ github.workspace }}/generated/styles"
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: CTest
+        working-directory: build
+        run: ctest --output-on-failure --parallel 4
+
+      - name: Install
+        run: cmake --install build
+
+      # Make .so self-contained so Blender can dlopen() it from addon dir
+      - name: Patch RPATH for Blender
+        run: |
+          SO=$(find install/lib -name "libmotionbricks*.so" | head -1)
+          patchelf --set-rpath '$ORIGIN' "$SO"
+
+      - name: Package addon lib (Linux x86_64)
+        run: |
+          outDir="addon-lib/linux-x86_64"
+          mkdir -p "$outDir"
+          cp install/lib/libmotionbricks*.so* "$outDir/"
+          cp install/bin/motionbricks-cli     "$outDir/" 2>/dev/null || true
+          cp -r install/include               "$outDir/" 2>/dev/null || true
+          echo "=== Packaged ==="
+          find "$outDir" -type f
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: motionbricks-linux-x86_64
+          path: addon-lib/linux-x86_64/
+          retention-days: 30
+
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 5. Package all platform libs into a single Blender addon zip
+  #    Only runs on a tag push (v*.*.*)
+  # ────────────────────────────────────────────────────────────────────────────
   release:
-    name: Create GitHub Release
-    needs: build
+    name: Create Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs:
+      - build-windows
+      - build-macos-arm64
+      - build-macos-x86_64
+      - build-linux
     runs-on: ubuntu-latest
-    steps:
-    - name: Download Artifacts
-      uses: actions/download-artifact@v4
-      with:
-        path: artifacts
-        merge-multiple: true
 
-    # 빌드된 바이너리들을 깃허브 Release 페이지에 자동으로 업로드합니다.
-    - name: Create Release
-      uses: softprops/action-gh-release@v2
-      with:
-        files: |
-          artifacts/motionbricks-windows.zip
-          artifacts/motionbricks-linux.tar.gz
-        tag_name: ${{ github.ref_name }}
-        name: Release ${{ github.ref_name }}
-        draft: false
-        prerelease: false
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    permissions:
+      contents: write    # needed to create a GitHub Release
+
+    steps:
+      # ── Collect all platform artifacts ──────────────────────────────────────
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: motionbricks-windows-x64
+          path: release/windows-x64
+
+      - name: Download macOS arm64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: motionbricks-macos-arm64
+          path: release/macos-arm64
+
+      - name: Download macOS x86_64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: motionbricks-macos-x86_64
+          path: release/macos-x86_64
+
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: motionbricks-linux-x86_64
+          path: release/linux-x86_64
+
+      # ── Build Blender addon zip structure ────────────────────────────────────
+      # Expected addon layout inside the zip:
+      #   motionbricks_addon/
+      #   ├── __init__.py           ← (must exist in repo at addon/__init__.py)
+      #   └── lib/
+      #       ├── windows-x64/
+      #       │   └── motionbricks.dll
+      #       ├── macos-arm64/
+      #       │   └── libmotionbricks.dylib
+      #       ├── macos-x86_64/
+      #       │   └── libmotionbricks.dylib
+      #       └── linux-x86_64/
+      #           └── libmotionbricks.so
+      - name: Checkout repo (for addon source)
+        uses: actions/checkout@v4
+        with:
+          path: repo
+
+      - name: Assemble Blender addon zip
+        run: |
+          TAG="${{ github.ref_name }}"
+          ADDON_DIR="motionbricks_addon"
+          ZIP_NAME="motionbricks-blender-addon-${TAG}.zip"
+
+          mkdir -p "${ADDON_DIR}/lib"
+
+          # Copy addon Python source if it exists
+          if [ -d "repo/addon" ]; then
+            cp -r repo/addon/. "${ADDON_DIR}/"
+          else
+            # Create a minimal __init__.py placeholder
+            cat > "${ADDON_DIR}/__init__.py" << 'PYEOF'
+          """
+          MotionBricks Blender Addon
+          Loads libmotionbricks native library for animation inference.
+          """
+          import platform, sys, ctypes
+          from pathlib import Path
+
+          bl_info = {
+              "name":        "MotionBricks",
+              "author":      "mayalhc",
+              "version":     (0, 1, 0),
+              "blender":     (4, 0, 0),
+              "location":    "View3D > Sidebar > MotionBricks",
+              "description": "NVIDIA MotionBricks animation inference via GGML/C++",
+              "category":    "Animation",
+          }
+
+          _LIB = None
+
+          def _lib_path() -> Path:
+              here = Path(__file__).parent / "lib"
+              system  = platform.system()
+              machine = platform.machine().lower()
+              if system == "Windows":
+                  return here / "windows-x64" / "motionbricks.dll"
+              elif system == "Darwin":
+                  arch = "arm64" if machine in ("arm64", "aarch64") else "x86_64"
+                  return here / f"macos-{arch}" / "libmotionbricks.dylib"
+              else:
+                  return here / "linux-x86_64" / "libmotionbricks.so"
+
+          def register():
+              global _LIB
+              lib_path = _lib_path()
+              if not lib_path.exists():
+                  raise FileNotFoundError(f"MotionBricks native library not found: {lib_path}")
+              _LIB = ctypes.CDLL(str(lib_path))
+              print(f"[MotionBricks] Loaded {lib_path}")
+
+          def unregister():
+              global _LIB
+              _LIB = None
+          PYEOF
+          fi
+
+          # Copy native libs
+          cp -r release/windows-x64  "${ADDON_DIR}/lib/"
+          cp -r release/macos-arm64  "${ADDON_DIR}/lib/"
+          cp -r release/macos-x86_64 "${ADDON_DIR}/lib/"
+          cp -r release/linux-x86_64 "${ADDON_DIR}/lib/"
+
+          echo "=== Addon structure ==="
+          find "${ADDON_DIR}" | sort
+
+          zip -r "${ZIP_NAME}" "${ADDON_DIR}/"
+          echo "ZIP_NAME=${ZIP_NAME}" >> $GITHUB_ENV
+
+      # ── Per-platform tarballs ────────────────────────────────────────────────
+      - name: Create per-platform tarballs
+        run: |
+          TAG="${{ github.ref_name }}"
+          for PLATFORM in windows-x64 macos-arm64 macos-x86_64 linux-x86_64; do
+            if [ "$PLATFORM" = "windows-x64" ]; then
+              zip -r "motionbricks-${PLATFORM}-${TAG}.zip" "release/${PLATFORM}/"
+            else
+              tar -czf "motionbricks-${PLATFORM}-${TAG}.tar.gz" -C release "${PLATFORM}/"
+            fi
+          done
+
+      # ── GitHub Release ───────────────────────────────────────────────────────
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name:       "MotionBricks ${{ github.ref_name }}"
+          draft:      false
+          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+          body: |
+            ## MotionBricks ${{ github.ref_name }}
+
+            ### Blender Addon (all platforms bundled)
+            Download `motionbricks-blender-addon-*.zip`, install via:
+            **Edit → Preferences → Add-ons → Install** and select the zip.
+
+            The addon auto-selects the correct native library for your OS/arch.
+
+            ### Individual platform libraries
+            | File | Platform |
+            |------|----------|
+            | `motionbricks-windows-x64-*.zip` | Windows 10/11 x64 |
+            | `motionbricks-macos-arm64-*.tar.gz` | macOS Apple Silicon |
+            | `motionbricks-macos-x86_64-*.tar.gz` | macOS Intel |
+            | `motionbricks-linux-x86_64-*.tar.gz` | Linux x86_64 |
+
+            ### Requirements
+            - Blender 4.0 or later
+            - NVIDIA GPU recommended (Vulkan backend); CPU fallback available
+          files: |
+            ${{ env.ZIP_NAME }}
+            motionbricks-windows-x64-*.zip
+            motionbricks-macos-arm64-*.tar.gz
+            motionbricks-macos-x86_64-*.tar.gz
+            motionbricks-linux-x86_64-*.tar.gz
