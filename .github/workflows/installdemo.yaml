@@ -107,16 +107,18 @@ jobs:
         run: |
           cd demo
           if [ "${{ runner.os }}" = "Windows" ]; then
-            CGO_ENABLED=0 go build -o ../install/bin/motionbricks-demo.exe .
+            # CGO_ENABLED=0을 제거하고 순수 go build만 실행합니다.
+            go build -o ../install/bin/motionbricks-demo.exe .
             # 웹 데모 구동에 필수인 웹 자산(Three.js 등)을 install 폴더 내부로 복사
             mkdir -p ../install/bin/demo/web
             cp -r web/* ../install/bin/demo/web/
           else
-            CGO_ENABLED=0 go build -o ../install/bin/motionbricks-demo .
+            go build -o ../install/bin/motionbricks-demo .
             mkdir -p ../install/bin/demo/web
             cp -r web/* ../install/bin/demo/web/
           fi
           cd ..
+
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
