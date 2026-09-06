@@ -22,7 +22,7 @@ jobs:
         submodules: recursive # ggml 등 연결된 서브모듈까지 전부 긁어옵니다.
 
     - name: Setup CMake
-      uses: jwlawrence/actions-setup-cmake@v2
+      uses: jwact/setup-cmake@v1
 
     - name: Setup Ninja (Windows & Linux Speedup)
       uses: ashutoshvarma/setup-ninja@master
